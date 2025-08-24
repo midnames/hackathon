@@ -8,7 +8,7 @@
     "build": "npm run copy-contract-keys && tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "copy-contract-keys": "mkdir -p ./public/midnight/rebels/keys && mkdir -p ./public/midnight/rebels/zkir && cp -r ../counter-contract/dist/managed/rebels/keys/* ./public/midnight/rebels/keys && cp -r ../counter-contract/dist/managed/rebels/zkir/* ./public/midnight/rebels/zkir"
+    "copy-contract-keys": "mkdir -p ./public/midnight/rebels/keys && mkdir -p ./public/midnight/rebels/zkir && cp -r ../freedom-contract/dist/managed/rebels/keys/* ./public/midnight/rebels/keys && cp -r ../freedom-contract/dist/managed/rebels/zkir/* ./public/midnight/rebels/zkir"
   },
   "dependencies": {
     "@bitcoin-js/tiny-secp256k1-asmjs": "^2.2.0",

@@ -4,16 +4,16 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "counter-cli",
-    "counter-contract",
+    "freedom-cli",
+    "freedom-contract",
     "frontend-vite-react"
   ],
   "scripts": {
     "compact": "turbo run compact",
     "build": "turbo run build",
     "lint": "turbo run lint",
-    "dev:proof-server": "cd counter-cli && npm run run-proof-server-testnet",
-    "dev:undeployed-instances": "cd counter-cli && npm run prepare-standalone",
+    "dev:proof-server": "cd freedom-cli && npm run run-proof-server-testnet",
+    "dev:undeployed-instances": "cd freedom-cli && npm run prepare-standalone",
     "dev:frontend": "cd frontend-vite-react && npm run dev",
     "start-app-testnet": "concurrently \"npm run dev:proof-server\" \"npm run dev:frontend\"",
     "start-app-undeployed": "npm run dev:frontend"

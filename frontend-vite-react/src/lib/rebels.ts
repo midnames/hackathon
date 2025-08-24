@@ -12,11 +12,11 @@ import {
   rebelsLedger,
   RebelsContract,
   rebelsPureCircuits,
-} from "../../../counter-contract/src/index.js";
+} from "../../../freedom-contract/src/index.js";
 import {
   rebelsWitnesses,
   type RebelsPrivateState,
-} from "../../../counter-contract/src/witnesses.js";
+} from "../../../freedom-contract/src/witnesses.js";
 export type { RebelsPrivateState };
 import {
   deployContract,
