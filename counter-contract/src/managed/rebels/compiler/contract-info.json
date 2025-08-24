@@ -1,6 +1,24 @@
 {
   "circuits": [
     {
+      "name": "addNewHuman",
+      "pure": false,
+      "arguments": [
+        {
+          "name": "pk",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
       "name": "suggestNewUser",
       "pure": false,
       "arguments": [

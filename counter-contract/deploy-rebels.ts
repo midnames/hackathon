@@ -74,7 +74,7 @@ const logger: Logger = pino(
 
 // Use a test wallet seed - in production, use your own secure seed
 const DEPLOYER_WALLET_SEED =
-  "557beb4d4bd5c88948712fd375b20f44ed9f38ade5e6ee8c27ece84d26de1639";
+  "557beb4d4bd5c88948712fd375b20f44ed9f38ade5e6ee8c27ece84d26de1640";
 
 // Contract configuration
 const contractConfig = {

@@ -16,10 +16,16 @@ function StyledPost({ content }: { content: string }) {
   let summary: string | undefined;
   let imageUrl: string | undefined;
   const body: string[] = [];
+  let tags: string[] = [];
   for (const line of lines) {
     if (!title && line.startsWith("# ")) { title = line.slice(2).trim(); continue; }
     if (!imageUrl && line.startsWith("![image](") && line.endsWith(")")) { imageUrl = line.slice(9, -1); continue; }
     if (!summary && line.startsWith("> ")) { summary = line.slice(2).trim(); continue; }
+    if (line.toLowerCase().startsWith("tags:")) { 
+      const raw = line.slice(5).trim();
+      tags = raw.split(/[\s,]+/).filter(Boolean);
+      continue;
+    }
     body.push(line);
   }
   return (
@@ -34,6 +40,13 @@ function StyledPost({ content }: { content: string }) {
       {body.length > 0 && (
         <div className="prose max-w-none">
           <p className="whitespace-pre-wrap">{body.join("\n")}</p>
+        </div>
+      )}
+      {tags.length > 0 && (
+        <div className="flex flex-wrap gap-2 pt-2">
+          {tags.map((t) => (
+            <span key={t} className="px-2 py-0.5 text-xs rounded bg-muted text-foreground/80 border">#{t.toLowerCase()}</span>
+          ))}
         </div>
       )}
     </div>

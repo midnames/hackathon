@@ -20,13 +20,22 @@ export ledger flaggedPosts: Map<Uint<64>, Set<Bytes<32>>>;
 export ledger prohibitedMaterialAuthority: Bytes<32>;
 export ledger removalVoteThreshold: Uint<8>;
 
-
-
-
+export ledger journalists: Set<Bytes<32>>;
+export ledger humans: Set<Bytes<32>>;
 export ledger referrals: Map<Bytes<32>, Uint<2>>;
 
+export sealed ledger HUMAN_AUTHORITY: ZswapCoinPublicKey;
+
+export circuit addNewHuman(pk: Bytes<32>): [] {
+  assert(!humans.member(disclose(pk)), "Already an human");
+  assert(ownPublicKey() == HUMAN_AUTHORITY, "NOT THE HUMAN AUTHORITY");
+  humans.insert(disclose(pk));
+}
+
 export circuit suggestNewUser(pk: Bytes<32>) : [] {
-  assert(!authorizedUsers.member(disclose(pk)), "Suggested user is already a member");
+  assert(!journalists.member(disclose(pk)), "Suggested user is already a member");
+  assert(humans.member(disclose(pk)), "Not a verified human");
+
 
   const pubkey = disclose(publicKey(localSecretKey()));
   
@@ -34,7 +43,7 @@ export circuit suggestNewUser(pk: Bytes<32>) : [] {
   assert(q < 2, "No more referals for you");
 
   referrals.insert(pubkey, (q + 1) as Uint<2>);
-  authorizedUsers.insert(disclose(pk));
+  journalists.insert(disclose(pk));
   referrals.insert(disclose(pk), 0);
 }
 
@@ -51,28 +60,30 @@ constructor(initialSecretKeys: Vector<3, Bytes<32>>, aliases: Vector<3, Opaque<"
   const user3PublicKey = disclose(publicKey(initialSecretKeys[2]));
   const authorityPublicKey = disclose(publicKey(authoritySecretKey));
   
-  authorizedUsers.insert(user1PublicKey);
+  journalists.insert(user1PublicKey);
   userAliases.insert(user1PublicKey, disclose(aliases[0]));
   userReputation.insert(user1PublicKey, 1000);
   referrals.insert(user1PublicKey, 0);
   
-  authorizedUsers.insert(user2PublicKey);
+  journalists.insert(user2PublicKey);
   userAliases.insert(user2PublicKey, disclose(aliases[1]));
   userReputation.insert(user2PublicKey, 1000);
   referrals.insert(user2PublicKey, 0);
   
-  authorizedUsers.insert(user3PublicKey);
+  journalists.insert(user3PublicKey);
   userAliases.insert(user3PublicKey, disclose(aliases[2]));
   userReputation.insert(user3PublicKey, 1000);
   referrals.insert(user3PublicKey, 0);
   
   prohibitedMaterialAuthority = authorityPublicKey;
   removalVoteThreshold = disclose(threshold);
+
+  HUMAN_AUTHORITY = ownPublicKey();
 }
 
 export circuit publishPost(content: Opaque<"string">): Uint<64> {
   const authorKey = disclose(publicKey(localSecretKey()));
-  assert(authorizedUsers.member(authorKey), "User not authorized to post");
+  assert(journalists.member(authorKey), "User not authorized to post");
   
   postCounter.increment(1);
   const postId = postCounter.read();

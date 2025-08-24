@@ -3,7 +3,7 @@ export const CONFIG = {
   // Vite env var should be defined as VITE_REBELS_CONTRACT_ADDRESS
   REBELS_CONTRACT_ADDRESS:
     (import.meta as any).env?.VITE_REBELS_CONTRACT_ADDRESS ||
-    "0200754c63438c4c805ba8a639d3ef876ac4ee95aed7d9afdde62ba8b9c60581805d",
+    "0200378c53f94ff37d087205294b0622b42634afc6f0dd0b01cde0d13e15030f3121",
 
   // Toggle debug UI panels (do not log sensitive info)
   DEBUG_UI: ((import.meta as any).env?.VITE_DEBUG_UI || "false") === "true",

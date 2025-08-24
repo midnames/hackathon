@@ -32,27 +32,17 @@ export const MainLayout = () => {
                 }`
               }
             >
-              Midnight Drop
+              Freedom Vault
             </NavLink>
             <NavLink
-              to="/profile"
+              to="/settings"
               className={({ isActive }) =>
                 `text-sm font-medium transition hover:text-foreground ${
                   isActive ? 'text-foreground underline underline-offset-4 decoration-accent' : 'text-muted-foreground'
                 }`
               }
             >
-              Profile
-            </NavLink>
-            <NavLink
-              to="/debug"
-              className={({ isActive }) =>
-                `text-sm font-medium transition hover:text-foreground ${
-                  isActive ? 'text-foreground underline underline-offset-4 decoration-accent' : 'text-muted-foreground'
-                }`
-              }
-            >
-              Debug
+              Settings
             </NavLink>
             <ModeToggle />
           </nav>

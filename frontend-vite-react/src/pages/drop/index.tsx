@@ -93,7 +93,7 @@ export function MidnightDrop() {
             <span className="uppercase tracking-widest text-xs">Freedom Vault</span>
           </div>
           <h1 className="font-headline text-4xl md:text-5xl leading-tight">
-            Midnight Drop
+            Freedom Vault
           </h1>
           <p className="text-base text-muted-foreground mt-3">
             A place for important documents that should be accessible to all, posted via the Rebels contract. Add a <span className="font-mono">tags:</span> line with <span className="font-mono">drop</span> to mark a submission.

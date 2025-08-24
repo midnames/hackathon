@@ -11,6 +11,7 @@ export type Witnesses<T> = {
 }
 
 export type ImpureCircuits<T> = {
+  addNewHuman(context: __compactRuntime.CircuitContext<T>, pk_0: Uint8Array): __compactRuntime.CircuitResults<T, []>;
   suggestNewUser(context: __compactRuntime.CircuitContext<T>, pk_0: Uint8Array): __compactRuntime.CircuitResults<T, []>;
   publishPost(context: __compactRuntime.CircuitContext<T>, content_0: string): __compactRuntime.CircuitResults<T, bigint>;
   votePlus(context: __compactRuntime.CircuitContext<T>, postId_0: bigint): __compactRuntime.CircuitResults<T, []>;
@@ -34,6 +35,7 @@ export type PureCircuits = {
 }
 
 export type Circuits<T> = {
+  addNewHuman(context: __compactRuntime.CircuitContext<T>, pk_0: Uint8Array): __compactRuntime.CircuitResults<T, []>;
   suggestNewUser(context: __compactRuntime.CircuitContext<T>, pk_0: Uint8Array): __compactRuntime.CircuitResults<T, []>;
   publicKey(context: __compactRuntime.CircuitContext<T>, sk_0: Uint8Array): __compactRuntime.CircuitResults<T, Uint8Array>;
   publishPost(context: __compactRuntime.CircuitContext<T>, content_0: string): __compactRuntime.CircuitResults<T, bigint>;
@@ -117,6 +119,18 @@ export type Ledger = {
   };
   readonly prohibitedMaterialAuthority: Uint8Array;
   readonly removalVoteThreshold: bigint;
+  journalists: {
+    isEmpty(): boolean;
+    size(): bigint;
+    member(elem_0: Uint8Array): boolean;
+    [Symbol.iterator](): Iterator<Uint8Array>
+  };
+  humans: {
+    isEmpty(): boolean;
+    size(): bigint;
+    member(elem_0: Uint8Array): boolean;
+    [Symbol.iterator](): Iterator<Uint8Array>
+  };
   referrals: {
     isEmpty(): boolean;
     size(): bigint;
@@ -124,6 +138,7 @@ export type Ledger = {
     lookup(key_0: Uint8Array): bigint;
     [Symbol.iterator](): Iterator<[Uint8Array, bigint]>
   };
+  readonly HUMAN_AUTHORITY: { bytes: Uint8Array };
 }
 
 export type ContractReferenceLocations = any;

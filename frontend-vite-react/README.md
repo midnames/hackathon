@@ -85,7 +85,7 @@ The app can use either the wallet’s prover or a custom proof server (ps.midnam
 
 ### Debug (/debug)
 
-### Midnight Drop (/drop)
+### Freedom Vault (/drop)
 
 - Freedom Vault: a focused feed for important documents that should be accessible to all. It filters the same on-chain posts to those tagged with `drop` (or `drops`).
 - Each card shows the title, summary, image (if any), and extracts the first URL in the content to provide a primary "Open Document" action and a secondary "Mirror/Archive" action.

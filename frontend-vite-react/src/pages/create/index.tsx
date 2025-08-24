@@ -45,7 +45,16 @@ export function Create() {
   const [postSummary, setPostSummary] = useState("");
   const [postImageUrl, setPostImageUrl] = useState("");
   const [postBody, setPostBody] = useState("");
-  const [postTags, setPostTags] = useState("");
+  const TAG_OPTIONS = [
+    "drop",
+    "politics",
+    "economy",
+    "technology",
+    "world",
+    "opinion",
+    "investigation",
+  ];
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [isPublishing, setIsPublishing] = useState(false);
   const [flowMessage, setFlowMessage] = useState<string | undefined>(undefined);
 
@@ -152,8 +161,8 @@ export function Create() {
     const parts: string[] = [];
     if (postTitle.trim()) parts.push(`# ${postTitle.trim()}`);
     if (postImageUrl.trim()) parts.push(`![image](${postImageUrl.trim()})`);
-    if (postSummary.trim()) parts.push(`> ${postSummary.trim()}`);
-  if (postTags.trim()) parts.push(`tags: ${postTags.trim()}`);
+  if (postSummary.trim()) parts.push(`> ${postSummary.trim()}`);
+  if (selectedTags.length > 0) parts.push(`tags: ${selectedTags.join(", ")}`);
     if (postBody.trim()) parts.push(postBody.trim());
     return parts.join("\n\n");
   };
@@ -199,7 +208,31 @@ export function Create() {
             <Input placeholder="Title" value={postTitle} onChange={(e) => setPostTitle(e.target.value)} disabled={isPublishing} className="font-headline text-lg" />
             <Input placeholder="Image URL (optional)" value={postImageUrl} onChange={(e) => setPostImageUrl(e.target.value)} disabled={isPublishing} />
             <Input placeholder="One-line summary (optional)" value={postSummary} onChange={(e) => setPostSummary(e.target.value)} disabled={isPublishing} />
-            <Input placeholder="Topics/tags (comma-separated, e.g. drop, politics)" value={postTags} onChange={(e) => setPostTags(e.target.value)} disabled={isPublishing} />
+            <div className="space-y-2">
+              <div className="text-sm text-muted-foreground">Topics</div>
+              <div className="flex flex-wrap gap-2">
+                {TAG_OPTIONS.map((t) => {
+                  const active = selectedTags.includes(t);
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => {
+                        setSelectedTags((prev) =>
+                          prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]
+                        );
+                      }}
+                      disabled={isPublishing}
+                      className={`px-2 py-1 text-xs rounded border transition ${
+                        active ? "bg-accent text-accent-foreground border-accent" : "bg-muted text-foreground/80"
+                      }`}
+                    >
+                      #{t}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <Textarea placeholder="Write your story..." value={postBody} onChange={(e) => setPostBody(e.target.value)} className="min-h-[180px]" disabled={isPublishing} />
             <div className="flex items-center justify-between">
               <div className="text-sm text-muted-foreground">

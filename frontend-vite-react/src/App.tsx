@@ -6,16 +6,15 @@ import {
   setNetworkId,
 } from "@midnight-ntwrk/midnight-js-network-id";
 import { MainLayout } from "./layouts/layout";
-import { Debug } from "./pages/wallet-ui";
 import { Rebels } from "./pages/rebels";
 import { ThemeProvider } from "./components/theme-provider";
 import { Toaster } from "@/components/ui/toaster";
 import { AppSettingsProvider } from "@/contexts/app-settings";
-import { Profile } from "@/pages/profile";
 import { Story } from "@/pages/story";
 import { AuthProvider } from "@/contexts/auth";
 import { Create } from "@/pages/create";
 import { MidnightDrop } from "@/pages/drop";
+import { Settings } from "@/pages/settings";
 
 export const logger = pino.pino({
   level: "trace",
@@ -37,8 +36,9 @@ function App() {
                 <Route path="/create" element={<Create />} />
                 <Route path="/drop" element={<MidnightDrop />} />
                 <Route path="/story/:id" element={<Story />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/debug" element={<Debug />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/profile" element={<Settings />} />
+                <Route path="/debug" element={<Settings />} />
               </Route>
             </Routes>
           </BrowserRouter>
