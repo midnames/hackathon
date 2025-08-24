@@ -1,11 +1,22 @@
 export * as Counter from "./managed/counter/contract/index.cjs";
+export * as Rebels from "./managed/rebels/contract/index.cjs";
 export * from "./witnesses";
 
-import ContractModule from './managed/counter/contract/index.cjs';
-import type { Contract as ContractType, Witnesses } from './managed/counter/contract/index.cjs';
+import CounterModule from './managed/counter/contract/index.cjs';
+import RebelsModule from './managed/rebels/contract/index.cjs';
+import type { Contract as CounterContractType, Witnesses as CounterWitnesses } from './managed/counter/contract/index.cjs';
+import type { Contract as RebelsContractClass, Witnesses as RebelsWitnesses } from './managed/rebels/contract/index.cjs';
 
-export const ledger = ContractModule.ledger;
-export const pureCircuits = ContractModule.pureCircuits;
-export const { Contract } = ContractModule;
-export type Contract<T, W extends Witnesses<T> = Witnesses<T>> = ContractType<T, W>;
-export type Ledger = ContractModule.Ledger;
+// Counter exports
+export const ledger = CounterModule.ledger;
+export const pureCircuits = CounterModule.pureCircuits;
+export const { Contract } = CounterModule;
+export type Contract<T, W extends CounterWitnesses<T> = CounterWitnesses<T>> = CounterContractType<T, W>;
+export type Ledger = CounterModule.Ledger;
+
+// Rebels exports
+export const rebelsLedger = RebelsModule.ledger;
+export const rebelsPureCircuits = RebelsModule.pureCircuits;
+export const RebelsContract = RebelsModule.Contract;
+export type RebelsContractType<T, W extends RebelsWitnesses<T> = RebelsWitnesses<T>> = RebelsContractClass<T, W>;
+export type RebelsLedger = RebelsModule.Ledger;

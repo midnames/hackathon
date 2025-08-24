@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Link2, Server, Wifi, WifiOff, Wallet, Key } from "lucide-react";
 
-export function WalletUI() {
+export function Debug() {
   const {
     address,
     coinPublicKey,
@@ -21,7 +21,7 @@ export function WalletUI() {
     <div className="container mx-auto py-8 px-4">
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Wallet Dashboard</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Debug Dashboard</h1>
           <p className="text-muted-foreground">Manage your wallet and view connection details</p>
         </div>
         <div className="flex items-center gap-2">

@@ -12,23 +12,15 @@ export const MainLayout = () => {
             }
             end
           >
-            Home
+            Rebels
           </NavLink>
           <NavLink
-            to="/counter"
+            to="/debug"
             className={({ isActive }) =>
               `font-semibold transition hover:opacity-80 ${isActive ? 'underline' : ''}`
             }
           >
-            Counter
-          </NavLink>        
-          <NavLink
-            to="/wallet-ui"
-            className={({ isActive }) =>
-              `font-semibold transition hover:opacity-80 ${isActive ? 'underline' : ''}`
-            }
-          >
-            Wallet UI
+            Debug
           </NavLink>
         </nav>
       </header>

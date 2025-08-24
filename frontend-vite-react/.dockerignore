@@ -1,0 +1,97 @@
+# Frontend .dockerignore for optimized builds
+# This reduces Docker context size and build time
+
+# Development files
+node_modules
+.git
+.gitignore
+README.md
+.env*
+.vscode
+.idea
+
+# Build artifacts (will be created during build)
+dist
+*.log
+*.tgz
+
+# Test files
+*.test.*
+**/__tests__/
+**/test/
+coverage
+
+# Cache directories
+.turbo
+.next
+.nuxt
+.cache
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Development tools
+eslint.config.*
+tsconfig.*.json
+vite.config.ts.timestamp-*
+
+# Temporary files
+tmp
+temp
+
+# Documentation
+docs
+*.md
+
+# Editor files
+*.sublime-*
+*.vim
+.editorconfig
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# nyc test coverage
+.nyc_output
+
+# Dependency directories
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# parcel-bundler cache (https://parceljs.org/)
+.parcel-cache
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
+
+# Storybook build outputs
+.out
+.storybook-out
