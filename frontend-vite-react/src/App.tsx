@@ -15,6 +15,7 @@ import { Profile } from "@/pages/profile";
 import { Story } from "@/pages/story";
 import { AuthProvider } from "@/contexts/auth";
 import { Create } from "@/pages/create";
+import { MidnightDrop } from "@/pages/drop";
 
 export const logger = pino.pino({
   level: "trace",
@@ -34,6 +35,7 @@ function App() {
               <Route element={<MainLayout />}>
                 <Route path="/" element={<Rebels />} />
                 <Route path="/create" element={<Create />} />
+                <Route path="/drop" element={<MidnightDrop />} />
                 <Route path="/story/:id" element={<Story />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/debug" element={<Debug />} />

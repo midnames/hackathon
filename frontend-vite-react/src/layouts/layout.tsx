@@ -25,6 +25,16 @@ export const MainLayout = () => {
               Headlines
             </NavLink>
             <NavLink
+              to="/drop"
+              className={({ isActive }) =>
+                `text-sm font-medium transition hover:text-foreground ${
+                  isActive ? 'text-foreground underline underline-offset-4 decoration-accent' : 'text-muted-foreground'
+                }`
+              }
+            >
+              Midnight Drop
+            </NavLink>
+            <NavLink
               to="/profile"
               className={({ isActive }) =>
                 `text-sm font-medium transition hover:text-foreground ${

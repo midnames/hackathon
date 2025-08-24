@@ -34,6 +34,7 @@ The app can use either the wallet’s prover or a custom proof server (ps.midnam
 - Contract lib: `src/lib/rebels.ts` wraps reads/writes to the Rebels contract and provides helpers (post listing, publish, vote, flag, referrals, user info, key derivation).
 - Routes (React Router):
   - / — Headlines (Rebels)
+  - /drop — Midnight Drop (curated links to important documents tagged as `drop`)
   - /create — Story editor/publisher
   - /story/:id — Full article view
   - /profile — Identity (secret key) + reputation
@@ -84,6 +85,12 @@ The app can use either the wallet’s prover or a custom proof server (ps.midnam
 
 ### Debug (/debug)
 
+### Midnight Drop (/drop)
+
+- Freedom Vault: a focused feed for important documents that should be accessible to all. It filters the same on-chain posts to those tagged with `drop` (or `drops`).
+- Each card shows the title, summary, image (if any), and extracts the first URL in the content to provide a primary "Open Document" action and a secondary "Mirror/Archive" action.
+- To publish a drop, add a tags line in the Create page: `tags: drop, politics` and include the target URL (HTTP(s) or ipfs://) anywhere in the content.
+
 - Utilities for development, including selecting a custom proof server. Keep sensitive data out of logs.
 
 ## Contract integration details
@@ -109,6 +116,7 @@ To remain compatible with the contract’s single‑string payload, stories are 
 - Title: `# My headline`
 - Image (optional): `![image](https://...)`
 - Summary (optional): `> One line summary`
+- Tags (optional): `tags: drop, politics` (comma or space separated)
 - Body: free text paragraphs
 
 The feed shows a teaser (title, image, summary). The Story page renders the full body.

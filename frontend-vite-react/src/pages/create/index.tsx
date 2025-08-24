@@ -45,6 +45,7 @@ export function Create() {
   const [postSummary, setPostSummary] = useState("");
   const [postImageUrl, setPostImageUrl] = useState("");
   const [postBody, setPostBody] = useState("");
+  const [postTags, setPostTags] = useState("");
   const [isPublishing, setIsPublishing] = useState(false);
   const [flowMessage, setFlowMessage] = useState<string | undefined>(undefined);
 
@@ -152,6 +153,7 @@ export function Create() {
     if (postTitle.trim()) parts.push(`# ${postTitle.trim()}`);
     if (postImageUrl.trim()) parts.push(`![image](${postImageUrl.trim()})`);
     if (postSummary.trim()) parts.push(`> ${postSummary.trim()}`);
+  if (postTags.trim()) parts.push(`tags: ${postTags.trim()}`);
     if (postBody.trim()) parts.push(postBody.trim());
     return parts.join("\n\n");
   };
@@ -197,6 +199,7 @@ export function Create() {
             <Input placeholder="Title" value={postTitle} onChange={(e) => setPostTitle(e.target.value)} disabled={isPublishing} className="font-headline text-lg" />
             <Input placeholder="Image URL (optional)" value={postImageUrl} onChange={(e) => setPostImageUrl(e.target.value)} disabled={isPublishing} />
             <Input placeholder="One-line summary (optional)" value={postSummary} onChange={(e) => setPostSummary(e.target.value)} disabled={isPublishing} />
+            <Input placeholder="Topics/tags (comma-separated, e.g. drop, politics)" value={postTags} onChange={(e) => setPostTags(e.target.value)} disabled={isPublishing} />
             <Textarea placeholder="Write your story..." value={postBody} onChange={(e) => setPostBody(e.target.value)} className="min-h-[180px]" disabled={isPublishing} />
             <div className="flex items-center justify-between">
               <div className="text-sm text-muted-foreground">
@@ -239,12 +242,18 @@ function Preview({ content }: { content: string }) {
   let title: string | undefined;
   let summary: string | undefined;
   let imageUrl: string | undefined;
+  let tags: string[] = [];
   const body: string[] = [];
 
   for (const line of lines) {
     if (!title && line.startsWith("# ")) { title = line.slice(2).trim(); continue; }
     if (!imageUrl && line.startsWith("![image](") && line.endsWith(")")) { imageUrl = line.slice(9, -1); continue; }
     if (!summary && line.startsWith("> ")) { summary = line.slice(2).trim(); continue; }
+    if (line.toLowerCase().startsWith("tags:")) { 
+      const raw = line.slice(5).trim();
+      tags = raw.split(/[,\s]+/).filter(Boolean);
+      continue;
+    }
     body.push(line);
   }
 
@@ -260,6 +269,15 @@ function Preview({ content }: { content: string }) {
       {body.length > 0 && (
         <div className="prose prose-sm max-w-none">
           <p className="whitespace-pre-wrap">{body.join("\n")}</p>
+        </div>
+      )}
+      {tags.length > 0 && (
+        <div className="flex flex-wrap gap-2 pt-2">
+          {tags.map((t) => (
+            <span key={t} className="px-2 py-0.5 text-xs rounded bg-muted text-foreground/80 border">
+              #{t.toLowerCase()}
+            </span>
+          ))}
         </div>
       )}
     </div>
