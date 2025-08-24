@@ -788,3 +788,72 @@ export async function checkUserVote(
     return null;
   }
 }
+
+// Suggest a new user (referral system)
+export async function suggestNewUser(
+  providers: RebelsProviders,
+  contractAddress: string,
+  newUserPublicKeyHex: string,
+  secretKeyHex: string
+): Promise<{ success: boolean; txHash?: string; error?: string }> {
+  console.log(`[DEBUG] suggestNewUser called for:`, newUserPublicKeyHex.substring(0, 8) + "...");
+
+  try {
+    // Convert hex strings to Uint8Array
+    const newUserPublicKey = hexToBytes(newUserPublicKeyHex);
+    const secretKey = hexToBytes(secretKeyHex);
+    
+    console.log(`[DEBUG] suggestNewUser: getting deployed contract`);
+    // Get deployed contract object
+    const deployedContract = await getDeployedRebelsContract(
+      providers,
+      contractAddress,
+      secretKey
+    );
+    
+    console.log(`[DEBUG] suggestNewUser: calling contract circuit`);
+    const result = await deployedContract.callTx.suggestNewUser(newUserPublicKey);
+
+    console.log(`[DEBUG] suggestNewUser: transaction successful`, result.public.txId);
+    return { 
+      success: true, 
+      txHash: result.public.txId 
+    };
+  } catch (error: any) {
+    console.error("[DEBUG] suggestNewUser failed:", error);
+    return { success: false, error: error?.message || "Unknown error" };
+  }
+}
+
+// Get user's remaining referral count
+export async function getReferralCount(
+  publicDataProvider: PublicDataProvider,
+  contractAddress: string,
+  userPublicKey: string
+): Promise<number> {
+  console.log(`[DEBUG] getReferralCount called for:`, userPublicKey.substring(0, 8) + "...");
+
+  try {
+    const contractState = await queryContractStateSafely(
+      publicDataProvider,
+      contractAddress,
+      `Contract state unavailable for Rebels contract ${contractAddress}`
+    );
+
+    const contractLedger = rebelsLedger(contractState.data);
+    const userKeyBytes = hexToBytes(userPublicKey);
+
+    if (contractLedger.referrals.member(userKeyBytes)) {
+      const usedReferrals = contractLedger.referrals.lookup(userKeyBytes);
+      const remaining = 2 - Number(usedReferrals); // Max 2 referrals per user
+      console.log(`[DEBUG] getReferralCount: user has used ${usedReferrals}, remaining: ${remaining}`);
+      return Math.max(0, remaining);
+    } else {
+      console.log(`[DEBUG] getReferralCount: user not found in referrals map, assuming 2 remaining`);
+      return 2; // New user, hasn't used any referrals yet
+    }
+  } catch (error) {
+    console.error("[DEBUG] getReferralCount failed:", error);
+    return 0; // Default to 0 on error
+  }
+}

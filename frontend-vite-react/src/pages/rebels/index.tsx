@@ -12,10 +12,12 @@ import {
   Flag,
   User,
   Trophy,
-  Plus,
   Send,
   AlertCircle,
   CheckCircle,
+  ArrowRight,
+  Users,
+  RefreshCw,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -51,22 +53,21 @@ import {
 import { Transaction } from "@midnight-ntwrk/ledger";
 import { ProviderCallbackAction } from "@meshsdk/midnight-core";
 import {
-  RebelsPrivateStateId,
   type PostWithMetadata,
   type UserInfo,
-  type RebelsPrivateState,
   getAllPosts,
   getUserInfo,
   publishPost,
   votePlus,
   voteMinus,
   flagPost,
-  deployRebelsContract,
   findDeployedRebelsContract,
   coinPublicKeyToHex,
   getUserInfoFromSecretKey,
   derivePublicKeyFromSecret,
   checkUserVote,
+  suggestNewUser,
+  getReferralCount,
 } from "@/lib/rebels";
 
 // VotingButton component
@@ -167,7 +168,6 @@ const VotingButton: React.FC<VotingButtonProps> = ({
 
   const isCurrentlyVoting = votingStates[post.postId] === `voting-${voteType}`;
   const hasVoted = currentVote === "plus" || currentVote === "minus";
-  const hasVotedThisType = currentVote === voteType;
   const isActiveVote = currentVote === voteType;
 
   const Icon = voteType === "plus" ? ThumbsUp : ThumbsDown;
@@ -217,7 +217,7 @@ const VotingButton: React.FC<VotingButtonProps> = ({
 // Contract address - you might want to make this configurable
 const REBELS_CONTRACT_ADDRESS =
   process.env.REACT_APP_REBELS_CONTRACT_ADDRESS ||
-  "020028186857b4c80c1a6a46a51f167f6b16e0527f41db20048044017f78e4d62c6d";
+  "0200754c63438c4c805ba8a639d3ef876ac4ee95aed7d9afdde62ba8b9c60581805d";
 
 export function Rebels() {
   // State management
@@ -239,6 +239,14 @@ export function Rebels() {
     Record<number, "voting-plus" | "voting-minus" | null>
   >({});
   const [useCustomProofServer, setUseCustomProofServer] = useState(false);
+  const [activeTab, setActiveTab] = useState<"posts" | "referrals" | "debug">(
+    "posts"
+  );
+  const [newUserPublicKey, setNewUserPublicKey] = useState("");
+  const [secretKeyToConvert, setSecretKeyToConvert] = useState("");
+  const [convertedPublicKey, setConvertedPublicKey] = useState("");
+  const [referralCount, setReferralCount] = useState<number>(2);
+  const [isReferring, setIsReferring] = useState(false);
 
   const { hasConnectedWallet, uris, coinPublicKey, encryptionPublicKey } =
     useAssets();
@@ -463,60 +471,6 @@ export function Rebels() {
     loadSecretKeyUserInfo();
   }, [publicDataProvider, contractAddress, secretKey]);
 
-  // Function to check vote status for a specific post
-  const checkVoteStatus = useCallback(
-    async (postId: number): Promise<"plus" | "minus" | null> => {
-      console.log(`[DEBUG] checkVoteStatus called for post ${postId}:`, {
-        hasPublicDataProvider: !!publicDataProvider,
-        hasContractAddress: !!contractAddress,
-        hasSecretKey: !!secretKey,
-        secretKeyLength: secretKey?.length,
-        secretKeyValid: secretKey ? /^[0-9a-fA-F]+$/.test(secretKey) : false,
-      });
-
-      if (
-        !publicDataProvider ||
-        !contractAddress ||
-        !secretKey ||
-        secretKey.length !== 64 ||
-        !/^[0-9a-fA-F]+$/.test(secretKey)
-      ) {
-        console.log(
-          `[DEBUG] checkVoteStatus for post ${postId}: conditions not met, returning null`
-        );
-        return null;
-      }
-
-      try {
-        console.log(
-          `[DEBUG] checkVoteStatus for post ${postId}: deriving public key`
-        );
-        const userPublicKey = derivePublicKeyFromSecret(secretKey);
-        console.log(
-          `[DEBUG] checkVoteStatus for post ${postId}: calling checkUserVote with public key ${userPublicKey.substring(0, 8)}...`
-        );
-        const result = await checkUserVote(
-          publicDataProvider,
-          contractAddress,
-          userPublicKey,
-          postId
-        );
-        console.log(
-          `[DEBUG] checkVoteStatus for post ${postId}: checkUserVote returned:`,
-          result
-        );
-        return result;
-      } catch (error) {
-        console.error(
-          `[DEBUG] checkVoteStatus for post ${postId}: Failed to check vote status:`,
-          error
-        );
-        return null;
-      }
-    },
-    [publicDataProvider, contractAddress, secretKey]
-  );
-
   // Debug log when secretKeyUserInfo changes
   useEffect(() => {
     console.log("[DEBUG] secretKeyUserInfo changed:", {
@@ -524,7 +478,12 @@ export function Rebels() {
       reputation: secretKeyUserInfo?.reputation,
       alias: secretKeyUserInfo?.alias,
     });
-  }, [secretKeyUserInfo]);
+
+    // Load referral count when user info is available
+    if (secretKeyUserInfo && fullProviders && contractAddress) {
+      loadReferralCount();
+    }
+  }, [secretKeyUserInfo, fullProviders, contractAddress]);
 
   const loadPosts = async () => {
     if (!publicDataProvider || !contractAddress) return;
@@ -768,6 +727,120 @@ export function Rebels() {
     }
     return address;
   };
+
+  // Handle secret key to public key conversion
+  const handleConvertSecretKey = () => {
+    if (secretKeyToConvert.trim().length === 64) {
+      try {
+        const publicKey = derivePublicKeyFromSecret(secretKeyToConvert);
+        setConvertedPublicKey(publicKey);
+      } catch (error) {
+        setConvertedPublicKey("Error: Invalid secret key");
+      }
+    } else {
+      setConvertedPublicKey("Error: Secret key must be 64 hex characters");
+    }
+  };
+
+  // Handle referral submission
+  const handleReferral = async () => {
+    if (
+      !fullProviders ||
+      !contractAddress ||
+      !secretKeyUserInfo ||
+      !secretKey
+    ) {
+      setOperationResult({
+        success: false,
+        error: "Missing required providers or user information",
+      });
+      return;
+    }
+
+    if (!newUserPublicKey.trim()) {
+      setOperationResult({
+        success: false,
+        error: "Please enter a public key to refer",
+      });
+      return;
+    }
+
+    if (newUserPublicKey.length !== 64) {
+      setOperationResult({
+        success: false,
+        error: "Public key must be 64 hex characters",
+      });
+      return;
+    }
+
+    setIsReferring(true);
+    setFlowMessage("Submitting referral...");
+
+    try {
+      const result = await suggestNewUser(
+        fullProviders,
+        contractAddress,
+        newUserPublicKey,
+        secretKey
+      );
+
+      setOperationResult({
+        success: result.success,
+        txHash: result.txHash,
+        error: result.error,
+      });
+
+      if (result.success) {
+        setNewUserPublicKey("");
+        // Refresh referral count
+        setTimeout(() => loadReferralCount(), 1000);
+      }
+    } catch (error) {
+      setOperationResult({
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setIsReferring(false);
+      setFlowMessage(undefined);
+    }
+  };
+
+  // Load referral count for the current user
+  const loadReferralCount = async () => {
+    if (!fullProviders || !contractAddress || !secretKeyUserInfo) return;
+
+    try {
+      const count = await getReferralCount(
+        fullProviders.publicDataProvider,
+        contractAddress,
+        secretKeyUserInfo.publicKey
+      );
+      setReferralCount(count);
+    } catch (error) {
+      console.error("Failed to load referral count:", error);
+    }
+  };
+
+  // Check vote status for a specific post
+  const checkVoteStatus = useCallback(
+    async (postId: number): Promise<"plus" | "minus" | null> => {
+      if (!fullProviders || !secretKeyUserInfo) return null;
+
+      try {
+        return await checkUserVote(
+          fullProviders.publicDataProvider,
+          contractAddress,
+          secretKeyUserInfo.publicKey,
+          postId
+        );
+      } catch (error) {
+        console.error("Failed to check vote status:", error);
+        return null;
+      }
+    },
+    [fullProviders, contractAddress, secretKeyUserInfo]
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 py-12 px-4 sm:px-6 lg:px-8">
@@ -1068,166 +1141,441 @@ export function Rebels() {
           </div>
         )}
 
-        {/* Publish Post Section */}
+        {/* Tab Navigation */}
         {fullProviders && (
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle>Publish New Post</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-col gap-3">
-                <textarea
-                  placeholder="Share your story with the world..."
-                  value={newPostContent}
-                  onChange={(e) => setNewPostContent(e.target.value)}
-                  className="min-h-[100px] w-full px-3 py-2 border rounded-md resize-vertical"
-                  disabled={isPublishing}
-                />
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-muted-foreground">
-                    <div>{newPostContent.length}/1000 characters</div>
-                    <div
-                      className={`${secretKeyUserInfo ? "text-green-600" : "text-red-500"}`}
-                    >
-                      {secretKeyUserInfo
-                        ? "Secret key authenticated ✓"
-                        : "Please enter a valid secret key above ✗"}
-                    </div>
-                  </div>
-                  <Button
-                    onClick={handlePublishPost}
-                    disabled={
-                      isPublishing ||
-                      !newPostContent.trim() ||
-                      newPostContent.length > 1000 ||
-                      !secretKeyUserInfo
-                    }
-                    className="px-6"
-                  >
-                    {isPublishing ? (
-                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4 mr-2" />
-                        Publish
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Posts Feed */}
-        <div className="space-y-4">
-          {isLoading ? (
-            <div className="text-center py-8">
-              <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-              <p className="text-muted-foreground">Loading posts...</p>
+          <div className="mb-8">
+            <div className="flex space-x-1 bg-muted p-1 rounded-lg mb-6">
+              {(["posts", "referrals", "debug"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                    activeTab === tab
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {tab === "posts" && "📝 Posts"}
+                  {tab === "referrals" && "👥 Referrals"}
+                  {tab === "debug" && "🐛 Debug"}
+                </button>
+              ))}
             </div>
-          ) : posts.length === 0 ? (
-            <Card>
-              <CardContent className="py-8 text-center">
-                <MessageSquare className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-                <p className="text-muted-foreground">
-                  No posts yet. Be the first to share your story!
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            posts.map((post) => (
-              <Card key={post.postId} className="p-6">
-                <div className="space-y-4">
-                  {/* Post Header */}
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">
-                        Post #{post.postId} by {formatAddress(post.author)}
-                      </p>
-                      <div className="flex items-center gap-4 mt-1">
-                        <span
-                          className={`text-lg font-bold ${
-                            post.score > 0
-                              ? "text-green-600"
-                              : post.score < 0
-                                ? "text-red-600"
-                                : "text-muted-foreground"
-                          }`}
+
+            {/* Posts Tab */}
+            {activeTab === "posts" && (
+              <>
+                {/* Publish Post Section */}
+                <Card className="mb-8">
+                  <CardHeader>
+                    <CardTitle>Publish New Post</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex flex-col gap-3">
+                      <textarea
+                        placeholder="Share your story with the world..."
+                        value={newPostContent}
+                        onChange={(e) => setNewPostContent(e.target.value)}
+                        className="min-h-[100px] w-full px-3 py-2 border rounded-md resize-vertical"
+                        disabled={isPublishing}
+                      />
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm text-muted-foreground">
+                          <div>{newPostContent.length}/1000 characters</div>
+                          <div
+                            className={`${secretKeyUserInfo ? "text-green-600" : "text-red-500"}`}
+                          >
+                            {secretKeyUserInfo
+                              ? "Secret key authenticated ✓"
+                              : "Please enter a valid secret key above ✗"}
+                          </div>
+                        </div>
+                        <Button
+                          onClick={handlePublishPost}
+                          disabled={
+                            !newPostContent.trim() ||
+                            newPostContent.length > 1000 ||
+                            isPublishing ||
+                            !secretKeyUserInfo
+                          }
                         >
-                          Score: {post.score}
-                        </span>
-                        <span className="text-sm text-muted-foreground">
-                          +{post.plusVotes} / -{post.minusVotes}
-                        </span>
+                          {isPublishing ? (
+                            <>
+                              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
+                              Publishing...
+                            </>
+                          ) : (
+                            <>
+                              <Send className="w-4 h-4 mr-2" />
+                              Publish
+                            </>
+                          )}
+                        </Button>
                       </div>
                     </div>
-                  </div>
+                  </CardContent>
+                </Card>
 
-                  {/* Post Content */}
-                  <div className="prose prose-sm max-w-none">
-                    <p className="whitespace-pre-wrap">{post.content}</p>
-                  </div>
+                {/* Posts Feed */}
+                <div className="space-y-4">
+                  {isLoading ? (
+                    <div className="text-center py-8">
+                      <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                      <p className="text-muted-foreground">Loading posts...</p>
+                    </div>
+                  ) : posts.length === 0 ? (
+                    <Card>
+                      <CardContent className="py-8 text-center">
+                        <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                        <p className="text-muted-foreground">No posts yet</p>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    posts.map((post) => (
+                      <Card key={post.postId} className="p-6">
+                        <div className="space-y-4">
+                          {/* Post Header */}
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <p className="text-sm text-muted-foreground">
+                                Post #{post.postId} by{" "}
+                                {formatAddress(post.author)}
+                              </p>
+                              <div className="flex items-center gap-4 mt-1">
+                                <span
+                                  className={`text-lg font-bold ${
+                                    post.score > 0
+                                      ? "text-green-600"
+                                      : post.score < 0
+                                        ? "text-red-600"
+                                        : "text-muted-foreground"
+                                  }`}
+                                >
+                                  Score: {post.score}
+                                </span>
+                                <span className="text-sm text-muted-foreground">
+                                  +{post.plusVotes} / -{post.minusVotes}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
 
-                  {/* Action Buttons */}
-                  <div className="flex items-center gap-2 pt-2">
-                    {/* Upvote Button */}
-                    <VotingButton
-                      post={post}
-                      voteType="plus"
-                      onVote={handleVote}
-                      fullProviders={fullProviders}
-                      secretKeyUserInfo={secretKeyUserInfo}
-                      votingStates={votingStates}
-                      checkVoteStatus={checkVoteStatus}
-                    />
+                          {/* Post Content */}
+                          <div className="prose prose-sm max-w-none">
+                            <p className="whitespace-pre-wrap">
+                              {post.content}
+                            </p>
+                          </div>
 
-                    {/* Downvote Button */}
-                    <VotingButton
-                      post={post}
-                      voteType="minus"
-                      onVote={handleVote}
-                      fullProviders={fullProviders}
-                      secretKeyUserInfo={secretKeyUserInfo}
-                      votingStates={votingStates}
-                      checkVoteStatus={checkVoteStatus}
-                    />
+                          {/* Action Buttons */}
+                          <div className="flex items-center gap-2 pt-2">
+                            {/* Upvote Button */}
+                            <VotingButton
+                              post={post}
+                              voteType="plus"
+                              onVote={handleVote}
+                              fullProviders={fullProviders}
+                              secretKeyUserInfo={secretKeyUserInfo}
+                              votingStates={votingStates}
+                              checkVoteStatus={checkVoteStatus}
+                            />
 
-                    {/* Flag Button */}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleFlagPost(post.postId)}
-                      disabled={!fullProviders || !secretKeyUserInfo}
-                      className="flex items-center gap-1 text-muted-foreground hover:text-orange-600"
-                    >
-                      <Flag className="w-4 h-4" />
-                      Flag
-                    </Button>
+                            {/* Downvote Button */}
+                            <VotingButton
+                              post={post}
+                              voteType="minus"
+                              onVote={handleVote}
+                              fullProviders={fullProviders}
+                              secretKeyUserInfo={secretKeyUserInfo}
+                              votingStates={votingStates}
+                              checkVoteStatus={checkVoteStatus}
+                            />
 
-                    {/* Vote Status will be shown by VotingButton components */}
-                  </div>
+                            {/* Flag Button */}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleFlagPost(post.postId)}
+                              className="flex items-center gap-1"
+                            >
+                              <Flag className="w-4 h-4" />
+                              Flag
+                            </Button>
+                          </div>
+                        </div>
+                      </Card>
+                    ))
+                  )}
                 </div>
-              </Card>
-            ))
-          )}
-        </div>
-
-        {/* Refresh Button */}
-        <div className="mt-8 text-center">
-          <Button
-            variant="outline"
-            onClick={loadPosts}
-            disabled={isLoading || !publicDataProvider || !contractAddress}
-          >
-            {isLoading ? (
-              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
-            ) : (
-              <Plus className="w-4 h-4 mr-2" />
+              </>
             )}
-            Refresh Posts
-          </Button>
-        </div>
+
+            {/* Referrals Tab */}
+            {activeTab === "referrals" && (
+              <div className="space-y-6">
+                {/* Referral Status */}
+                <Card className="border-purple-200 bg-purple-50">
+                  <CardHeader>
+                    <CardTitle className="text-purple-800 text-lg">
+                      👥 Referral System
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-sm space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-purple-700">
+                        Remaining referrals:
+                      </span>
+                      <span className="font-mono bg-purple-100 px-2 py-1 rounded text-purple-900">
+                        {referralCount} / 2
+                      </span>
+                    </div>
+                    <p className="text-purple-600">
+                      You can refer up to 2 new users to join the platform.
+                    </p>
+                  </CardContent>
+                </Card>
+
+                {/* Secret Key to Public Key Converter */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>🔑 Secret Key → Public Key Converter</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Secret Key (64 hex characters):
+                      </label>
+                      <Input
+                        type="password"
+                        placeholder="Enter secret key to convert..."
+                        value={secretKeyToConvert}
+                        onChange={(e) => setSecretKeyToConvert(e.target.value)}
+                        className="font-mono"
+                      />
+                    </div>
+                    <Button onClick={handleConvertSecretKey} className="w-full">
+                      <ArrowRight className="w-4 h-4 mr-2" />
+                      Convert to Public Key
+                    </Button>
+                    {convertedPublicKey && (
+                      <div className="p-3 bg-muted rounded-md">
+                        <label className="block text-sm font-medium mb-2">
+                          Public Key:
+                        </label>
+                        <div className="font-mono text-xs break-all bg-background p-2 rounded border">
+                          {convertedPublicKey}
+                        </div>
+                        {!convertedPublicKey.startsWith("Error:") && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="mt-2"
+                            onClick={() =>
+                              setNewUserPublicKey(convertedPublicKey)
+                            }
+                          >
+                            Use for Referral
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Refer New User */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>➕ Refer New User</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        New User's Public Key:
+                      </label>
+                      <Input
+                        placeholder="Enter public key of user to refer..."
+                        value={newUserPublicKey}
+                        onChange={(e) => setNewUserPublicKey(e.target.value)}
+                        className="font-mono"
+                        disabled={isReferring}
+                      />
+                    </div>
+                    <Button
+                      onClick={handleReferral}
+                      disabled={
+                        !newUserPublicKey.trim() ||
+                        newUserPublicKey.length !== 64 ||
+                        isReferring ||
+                        referralCount === 0
+                      }
+                      className="w-full"
+                    >
+                      {isReferring ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
+                          Submitting Referral...
+                        </>
+                      ) : (
+                        <>
+                          <Users className="w-4 h-4 mr-2" />
+                          Refer User
+                        </>
+                      )}
+                    </Button>
+                    {referralCount === 0 && (
+                      <p className="text-sm text-red-600">
+                        You have used all your referrals for this period.
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Debug Tab */}
+            {activeTab === "debug" && secretKey && (
+              <Card className="border-yellow-200 bg-yellow-50">
+                <CardHeader>
+                  <CardTitle className="text-yellow-800 text-sm">
+                    🐛 Debug Information
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="text-xs space-y-2">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <strong>Secret Key:</strong>
+                      <div>Length: {secretKey.length}/64</div>
+                      <div>
+                        Valid Hex:{" "}
+                        {/^[0-9a-fA-F]+$/.test(secretKey) ? "✅" : "❌"}
+                      </div>
+                      <div>
+                        Valid Format:{" "}
+                        {secretKey.length === 64 &&
+                        /^[0-9a-fA-F]+$/.test(secretKey)
+                          ? "✅"
+                          : "❌"}
+                      </div>
+                    </div>
+                    <div>
+                      <strong>User Info:</strong>
+                      <div>
+                        Public Key: {secretKeyUserInfo?.publicKey.slice(0, 16)}
+                        ...
+                      </div>
+                      <div>Alias: {secretKeyUserInfo?.alias || "N/A"}</div>
+                      <div>Reputation: {secretKeyUserInfo?.reputation}</div>
+                      <div>Has Secret Key: {!!secretKey ? "✅" : "❌"}</div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mt-4">
+                    <div>
+                      <strong>Providers:</strong>
+                      <div>
+                        Public Data: {!!publicDataProvider ? "✅" : "❌"}
+                      </div>
+                      <div>Full Providers: {!!fullProviders ? "✅" : "❌"}</div>
+                      <div>
+                        Contract Address: {contractAddress.slice(0, 16)}...
+                      </div>
+                    </div>
+                    <div>
+                      <strong>Publish Status:</strong>
+                      <div>Content Length: {newPostContent.length}/1000</div>
+                      <div>
+                        Has content: {!!newPostContent.trim() ? "✅" : "❌"}
+                      </div>
+                      <div>
+                        Has secretKeyUserInfo:{" "}
+                        {!!secretKeyUserInfo ? "✅" : "❌"}
+                      </div>
+                      <div>
+                        Button disabled:{" "}
+                        {!newPostContent.trim() ||
+                        newPostContent.length > 1000 ||
+                        !secretKeyUserInfo
+                          ? "🔴 YES"
+                          : "🟢 NO"}
+                      </div>
+                      <div>Referrals remaining: {referralCount}/2</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Flow Messages and Results */}
+            {flowMessage && (
+              <Card className="border-blue-200 bg-blue-50 mb-4">
+                <CardContent className="py-4">
+                  <div className="flex items-center gap-2 text-blue-800">
+                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    {flowMessage}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {operationResult && (
+              <Card
+                className={`border-2 mb-4 ${
+                  operationResult.success
+                    ? "border-green-200 bg-green-50"
+                    : "border-red-200 bg-red-50"
+                }`}
+              >
+                <CardContent className="py-4">
+                  <div
+                    className={`text-sm ${
+                      operationResult.success
+                        ? "text-green-800"
+                        : "text-red-800"
+                    }`}
+                  >
+                    {operationResult.success ? (
+                      <div>
+                        <p className="font-medium">✅ Success!</p>
+                        {operationResult.txHash && (
+                          <p className="mt-2 font-mono text-xs">
+                            TX: {operationResult.txHash}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="font-medium">❌ Error</p>
+                        <p className="mt-1">{operationResult.error}</p>
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setOperationResult(null)}
+                    className="mt-2"
+                  >
+                    Dismiss
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Refresh Posts Button */}
+            <div className="text-center">
+              <Button
+                variant="outline"
+                onClick={loadPosts}
+                disabled={isLoading}
+                className="mb-4"
+              >
+                <RefreshCw
+                  className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`}
+                />
+                Refresh Posts
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
