@@ -10,8 +10,8 @@ import {
   ThumbsUp,
   ThumbsDown,
   Flag,
+  Trophy,
   
-  Send,
   AlertCircle,
   CheckCircle,
   ArrowRight,
@@ -21,7 +21,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+// Publish form moved to /create
 import { toast } from "sonner";
 import { CONFIG } from "@/config";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -64,12 +64,10 @@ import {
   type UserInfo,
   getAllPosts,
   getUserInfo,
-  publishPost,
   votePlus,
   voteMinus,
   flagPost,
   findDeployedRebelsContract,
-  coinPublicKeyToHex,
   getUserInfoFromSecretKey,
   derivePublicKeyFromSecret,
   checkUserVote,
@@ -227,18 +225,15 @@ const REBELS_CONTRACT_ADDRESS = CONFIG.REBELS_CONTRACT_ADDRESS;
 export function Rebels() {
   // State management
   const [posts, setPosts] = useState<PostWithMetadata[]>([]);
-  // Structured post creation fields
-  const [postTitle, setPostTitle] = useState("");
-  const [postSummary, setPostSummary] = useState("");
-  const [postImageUrl, setPostImageUrl] = useState("");
-  const [postBody, setPostBody] = useState("");
+  // Post creation moved to /create
   const { secretKey, secretKeyUserInfo, setSecretKeyUserInfo } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
-  const [isPublishing, setIsPublishing] = useState(false);
+  
   const [contractAddress, setContractAddress] = useState(
     REBELS_CONTRACT_ADDRESS
   );
-  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  // Map author publicKey -> UserInfo for displaying trust next to posts
+  const [authorInfoMap, setAuthorInfoMap] = useState<Record<string, UserInfo>>({});
   const [flowMessage, setFlowMessage] = useState<string | undefined>(undefined);
   const [operationResult, setOperationResult] = useState<any>(null);
   const [votingStates, setVotingStates] = useState<
@@ -451,12 +446,30 @@ export function Rebels() {
     }
   }, [publicDataProvider, contractAddress, secretKey, coinPublicKey]);
 
-  // Load user info when we have a connected wallet and contract
+  // Build author trust map whenever posts load
   useEffect(() => {
-    if (publicDataProvider && contractAddress && coinPublicKey) {
-      loadUserInfo();
-    }
-  }, [publicDataProvider, contractAddress, coinPublicKey]);
+    if (!publicDataProvider || !contractAddress || posts.length === 0) return;
+    const uniqueAuthors = Array.from(new Set(posts.map((p) => p.author)));
+    let cancelled = false;
+    (async () => {
+      try {
+        const entries = await Promise.all(
+          uniqueAuthors.map(async (author) => {
+            try {
+              const info = await getUserInfo(publicDataProvider, contractAddress, author);
+              return [author, info] as const;
+            } catch {
+              return [author, { publicKey: author, reputation: 1000, hasVotedPlus: false, hasVotedMinus: false }] as const;
+            }
+          })
+        );
+        if (!cancelled) setAuthorInfoMap(Object.fromEntries(entries));
+      } catch {
+        // ignore
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [publicDataProvider, contractAddress, posts]);
 
   // Load user info from secret key when secret key changes
   useEffect(() => {
@@ -505,21 +518,7 @@ export function Rebels() {
     }
   };
 
-  const loadUserInfo = async () => {
-    if (!publicDataProvider || !contractAddress || !coinPublicKey) return;
-
-    try {
-      const userKeyHex = coinPublicKeyToHex(coinPublicKey);
-      const info = await getUserInfo(
-        publicDataProvider,
-        contractAddress,
-        userKeyHex
-      );
-      setUserInfo(info);
-    } catch (error) {
-      console.error("Failed to load user info:", error);
-    }
-  };
+  // removed wallet-based user info fetch; trust comes via Profile + per-author map
 
   const loadSecretKeyUserInfo = async () => {
     console.log("[DEBUG] loadSecretKeyUserInfo called:", {
@@ -569,76 +568,7 @@ export function Rebels() {
     }
   };
 
-  // Compose post as a single string (markdown-like) to keep contract unchanged
-  const composePostContent = () => {
-    const parts: string[] = [];
-    if (postTitle.trim()) parts.push(`# ${postTitle.trim()}`);
-    if (postImageUrl.trim()) parts.push(`![image](${postImageUrl.trim()})`);
-    if (postSummary.trim()) parts.push(`> ${postSummary.trim()}`);
-    if (postBody.trim()) parts.push(postBody.trim());
-    return parts.join("\n\n");
-  };
-
-  const composedContent = composePostContent();
-  const MAX_CONTENT = 2000;
-
-  const handlePublishPost = async () => {
-    console.log("[DEBUG] handlePublishPost called:", {
-      hasFullProviders: !!fullProviders,
-      hasContractAddress: !!contractAddress,
-      hasContent: !!composedContent.trim(),
-      contentLength: composedContent.trim().length,
-      hasSecretKeyUserInfo: !!secretKeyUserInfo,
-      hasSecretKey: !!secretKey,
-      secretKeyLength: secretKey?.length,
-    });
-
-    if (
-      !fullProviders ||
-      !contractAddress ||
-      !composedContent.trim() ||
-      !secretKey
-    ) {
-      console.log(
-        "[DEBUG] handlePublishPost: conditions not met, returning early"
-      );
-      return;
-    }
-
-    console.log("[DEBUG] handlePublishPost: starting publish process");
-    setIsPublishing(true);
-    setOperationResult(null);
-    try {
-      const result = await publishPost(
-        fullProviders,
-        contractAddress,
-        composedContent.trim(),
-        secretKey
-      );
-
-      if (result.success) {
-        toast.success("Post published successfully", {
-          description: result.transactionId
-            ? `Tx: ${formatAddress(result.transactionId)}`
-            : undefined,
-        });
-  // clear fields
-  setPostTitle("");
-  setPostSummary("");
-  setPostImageUrl("");
-  setPostBody("");
-        // Reload posts after successful publish
-        setTimeout(() => loadPosts(), 2000); // Give some time for blockchain to update
-      } else {
-  toast.error(result.error || "Failed to publish post");
-      }
-    } catch (error) {
-  toast.error(error instanceof Error ? error.message : String(error));
-    } finally {
-      setIsPublishing(false);
-      setFlowMessage(undefined);
-    }
-  };
+  // Publish helpers removed; handled in /create
 
   const handleVote = async (postId: number, voteType: "plus" | "minus") => {
     console.log("[DEBUG] handleVote called:", {
@@ -849,6 +779,11 @@ export function Rebels() {
           <p className="text-base text-muted-foreground mt-3">
             Publish stories, vote on credibility, and build a reputation—on chain.
           </p>
+          <div className="mt-4">
+            <Button asChild>
+              <Link to="/create">➕ Create new story</Link>
+            </Button>
+          </div>
         </div>
 
   {/* Secret Key moved to Profile page */}
@@ -894,6 +829,19 @@ export function Rebels() {
             </div>
           )}
         </div>
+
+        {/* Your trust score (if secret key loaded in Profile) */}
+        {secretKeyUserInfo && (
+          <div className="mb-6 p-3 bg-muted/20 rounded-lg flex items-center justify-center gap-4 text-sm">
+            <span className="flex items-center gap-1 text-green-700">
+              <Trophy className="w-4 h-4" />
+              Your Trust: {secretKeyUserInfo.reputation}
+            </span>
+            {secretKeyUserInfo.alias && (
+              <span className="text-muted-foreground">Alias: {secretKeyUserInfo.alias}</span>
+            )}
+          </div>
+        )}
 
         {/* Contract Address Display */}
         {contractAddress && (
@@ -959,84 +907,6 @@ export function Rebels() {
             {/* Posts Tab */}
             {activeTab === "posts" && (
               <>
-                {/* Publish Post Section */}
-                <Card className="mb-8">
-                  <CardHeader>
-                    <CardTitle>Publish New Post</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex flex-col gap-3">
-                      <Input
-                        placeholder="Title"
-                        value={postTitle}
-                        onChange={(e) => setPostTitle(e.target.value)}
-                        disabled={isPublishing}
-                        className="font-headline text-lg"
-                      />
-                      <Input
-                        placeholder="Image URL (optional)"
-                        value={postImageUrl}
-                        onChange={(e) => setPostImageUrl(e.target.value)}
-                        disabled={isPublishing}
-                      />
-                      <Input
-                        placeholder="One-line summary (optional)"
-                        value={postSummary}
-                        onChange={(e) => setPostSummary(e.target.value)}
-                        disabled={isPublishing}
-                      />
-                      <Textarea
-                        placeholder="Write your story..."
-                        value={postBody}
-                        onChange={(e) => setPostBody(e.target.value)}
-                        className="min-h-[140px] resize-vertical"
-                        disabled={isPublishing}
-                      />
-                          <div className="flex items-center justify-between">
-                        <div className="text-sm text-muted-foreground">
-                          <div>{composedContent.length}/{MAX_CONTENT} characters</div>
-                          <div
-                            className={`${secretKeyUserInfo ? "text-green-600" : "text-red-500"}`}
-                          >
-                            {secretKeyUserInfo
-                              ? "Secret key authenticated ✓"
-                              : "Secret key required (set in Profile) ✗"}
-                          </div>
-                        </div>
-                        <Button
-                          onClick={handlePublishPost}
-                          disabled={
-                            !postTitle.trim() ||
-                            !postBody.trim() ||
-                            composedContent.length > MAX_CONTENT ||
-                            isPublishing ||
-                            !secretKeyUserInfo
-                          }
-                        >
-                          {isPublishing ? (
-                            <>
-                              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
-                              Publishing...
-                            </>
-                          ) : (
-                            <>
-                              <Send className="w-4 h-4 mr-2" />
-                              Publish
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                      {/* Live preview */}
-                      {composedContent && (
-                        <div className="mt-2 p-3 border rounded-md bg-muted/30">
-                          <div className="text-xs text-muted-foreground mb-2">Preview</div>
-                          <PostPreview content={composedContent} />
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-
                 {/* Posts Feed */}
                 <div className="space-y-4">
                   {isLoading ? (
@@ -1087,6 +957,10 @@ export function Rebels() {
                                 </span>
                                 <span className="text-sm text-muted-foreground">
                                   +{post.plusVotes} / -{post.minusVotes}
+                                </span>
+                                <span className="text-sm flex items-center gap-1 text-foreground/80">
+                                  <Trophy className="w-4 h-4" />
+                                  Trust: {authorInfoMap[post.author]?.reputation ?? "-"}
                                 </span>
                               </div>
                             </div>
@@ -1339,59 +1213,7 @@ export function Rebels() {
 }
 
 // Lightweight renderer for composed content (# title, > summary, ![image](url), body)
-function StyledPost({ content }: { content: string }) {
-  const lines = content.split(/\r?\n/).filter(Boolean);
-  let title: string | undefined;
-  let summary: string | undefined;
-  let imageUrl: string | undefined;
-  const body: string[] = [];
-
-  for (const line of lines) {
-    if (!title && line.startsWith("# ")) {
-      title = line.slice(2).trim();
-      continue;
-    }
-    if (!imageUrl && line.startsWith("![image](") && line.endsWith(")")) {
-      imageUrl = line.slice(9, -1);
-      continue;
-    }
-    if (!summary && line.startsWith("> ")) {
-      summary = line.slice(2).trim();
-      continue;
-    }
-    body.push(line);
-  }
-
-  return (
-    <div className="space-y-3">
-      {title && <h2 className="font-headline text-2xl leading-snug">{title}</h2>}
-      {summary && (
-        <p className="text-sm text-muted-foreground border-l-2 pl-3">
-          {summary}
-        </p>
-      )}
-      {imageUrl && (
-        <div className="rounded-md overflow-hidden border bg-muted/30">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={imageUrl} alt="post image" className="w-full h-auto object-cover" />
-        </div>
-      )}
-      {body.length > 0 && (
-        <div className="prose prose-sm max-w-none">
-          <p className="whitespace-pre-wrap">{body.join("\n")}</p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function PostPreview({ content }: { content: string }) {
-  return (
-    <div className="space-y-2">
-      <StyledPost content={content} />
-    </div>
-  );
-}
+// Preview helpers removed
 
 function Teaser({ content }: { content: string }) {
   const lines = content.split(/\r?\n/).filter(Boolean);

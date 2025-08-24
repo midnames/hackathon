@@ -1,4 +1,4 @@
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { MidnightMeshProvider } from "@meshsdk/midnight-react";
 import * as pino from "pino";
 import {
@@ -14,6 +14,7 @@ import { AppSettingsProvider } from "@/contexts/app-settings";
 import { Profile } from "@/pages/profile";
 import { Story } from "@/pages/story";
 import { AuthProvider } from "@/contexts/auth";
+import { Create } from "@/pages/create";
 
 export const logger = pino.pino({
   level: "trace",
@@ -32,6 +33,7 @@ function App() {
             <Routes>
               <Route element={<MainLayout />}>
                 <Route path="/" element={<Rebels />} />
+                <Route path="/create" element={<Create />} />
                 <Route path="/story/:id" element={<Story />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/debug" element={<Debug />} />
