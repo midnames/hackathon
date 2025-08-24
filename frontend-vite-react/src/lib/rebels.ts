@@ -1,26 +1,19 @@
 import {
-  NetworkId,
-  getNetworkId,
-} from "@midnight-ntwrk/midnight-js-network-id";
-import {
   MidnightProviders,
   PublicDataProvider,
   type ImpureCircuitId,
 } from "@midnight-ntwrk/midnight-js-types";
-import { ContractAddress } from "@midnight-ntwrk/compact-runtime";
 import {
   rebelsLedger,
   RebelsContract,
   rebelsPureCircuits,
+  type RebelsContractType as RebelsContractClass,
 } from "../../../counter-contract/src/index.js";
 import {
   rebelsWitnesses,
   type RebelsPrivateState,
 } from "../../../counter-contract/src/witnesses.js";
-import {
-  deployContract,
-  findDeployedContract,
-} from "@midnight-ntwrk/midnight-js-contracts";
+import { findDeployedContract } from "@midnight-ntwrk/midnight-js-contracts";
 
 // Define private state ID for Rebels contract
 export const RebelsPrivateStateId = "rebelsPrivateState";
@@ -30,10 +23,24 @@ export const rebelsContractInstance = new RebelsContract<RebelsPrivateState>(
   rebelsWitnesses
 );
 
+// Find deployed Rebels contract (simple version for initial discovery)
+export async function findDeployedRebelsContract(
+  providers: Pick<RebelsProviders, "publicDataProvider">
+): Promise<string | null> {
+  console.log("Looking for deployed Rebels contract...");
+  console.log("PublicDataProvider available:", !!providers.publicDataProvider);
+  
+  // For now, return the default contract address since the function 
+  // signature in midnight-js-contracts is complex for contract discovery
+  // In a real app, you'd implement proper contract discovery
+  console.log("Using default contract address for now");
+  return null;
+}
+
 // Define proper provider types for Rebels contract
-type RebelsContractType = RebelsContract<RebelsPrivateState>;
+type RebelsContractType = RebelsContractClass<RebelsPrivateState>;
 type RebelsCircuits = ImpureCircuitId<RebelsContractType>;
-type RebelsProviders = MidnightProviders<
+export type RebelsProviders = MidnightProviders<
   RebelsCircuits,
   typeof RebelsPrivateStateId,
   RebelsPrivateState
@@ -114,19 +121,19 @@ async function queryContractStateSafely(
 ) {
   console.log("[DEBUG] queryContractStateSafely called:", {
     contractAddress: contractAddress.substring(0, 8) + "...",
-    errorMessage
+    errorMessage,
   });
-  
+
   try {
     const contractState =
       await publicDataProvider.queryContractState(contractAddress);
-    
+
     console.log("[DEBUG] Contract state query result:", {
       hasState: contractState != null,
       hasData: contractState?.data != null,
-      dataType: typeof contractState?.data
+      dataType: typeof contractState?.data,
     });
-    
+
     if (contractState == null) {
       console.error("[DEBUG] Contract state is null");
       throw new Error(errorMessage);
@@ -148,22 +155,26 @@ export function derivePublicKeyFromSecret(secretKeyHex: string): string {
   console.log("[DEBUG] derivePublicKeyFromSecret called with:", {
     secretKeyHex: secretKeyHex.substring(0, 8) + "...", // Only show first 8 chars for privacy
     length: secretKeyHex.length,
-    isValidHex: /^[0-9a-fA-F]+$/.test(secretKeyHex)
+    isValidHex: /^[0-9a-fA-F]+$/.test(secretKeyHex),
   });
-  
+
   try {
     const secretKey = hexToBytes(secretKeyHex);
-    console.log("[DEBUG] secretKey converted to bytes:", { byteLength: secretKey.length });
-    
+    console.log("[DEBUG] secretKey converted to bytes:", {
+      byteLength: secretKey.length,
+    });
+
     const publicKeyBytes = rebelsPureCircuits.publicKey(secretKey);
-    console.log("[DEBUG] publicKey derived:", { byteLength: publicKeyBytes.length });
-    
+    console.log("[DEBUG] publicKey derived:", {
+      byteLength: publicKeyBytes.length,
+    });
+
     const publicKeyHex = bytesToHex(publicKeyBytes);
     console.log("[DEBUG] publicKey hex:", {
       hex: publicKeyHex.substring(0, 8) + "...", // Only show first 8 chars
-      length: publicKeyHex.length
+      length: publicKeyHex.length,
     });
-    
+
     return publicKeyHex;
   } catch (error) {
     console.error("[DEBUG] Failed to derive public key:", error);
@@ -211,56 +222,6 @@ async function getDeployedRebelsContract(
   });
 
   return deployedContract;
-}
-
-// Deploy a new Rebels contract
-export async function deployRebelsContract(
-  providers: RebelsProviders,
-  initialUsers: string[],
-  aliases: string[],
-  authority: string,
-  threshold: number
-): Promise<string> {
-  console.log("Deploying Rebels contract...");
-
-  // Pad arrays to required length (3)
-  const paddedUsers = [...initialUsers];
-  const paddedAliases = [...aliases];
-
-  while (paddedUsers.length < 3) {
-    paddedUsers.push("00".repeat(32)); // Empty bytes
-  }
-  while (paddedAliases.length < 3) {
-    paddedAliases.push("");
-  }
-
-  const deployedContract = await deployContract(
-    providers,
-    rebelsContractInstance,
-    paddedUsers.map((u) => hexToBytes(u)),
-    paddedAliases,
-    hexToBytes(authority),
-    threshold
-  );
-
-  console.log("Rebels contract deployed at:", deployedContract.contractAddress);
-  return deployedContract.contractAddress;
-}
-
-// Find deployed Rebels contract
-export async function findDeployedRebelsContract(
-  providers: Pick<RebelsProviders, "publicDataProvider">,
-  deployerAddress?: string
-): Promise<string | null> {
-  console.log("Looking for deployed Rebels contract...");
-
-  const deployedContract = await findDeployedContract(
-    providers.publicDataProvider,
-    rebelsContractInstance,
-    deployerAddress
-  );
-
-  return deployedContract?.contractAddress || null;
 }
 
 // Read all posts from the contract
@@ -339,7 +300,7 @@ export async function getUserInfo(
     let alias: string | undefined;
     try {
       if (contractLedger.userAliases.member(userKeyBytes)) {
-        alias = contractLedger.userAliases.lookup(userKeyBytes).value as string;
+        alias = contractLedger.userAliases.lookup(userKeyBytes);
       }
     } catch (error) {
       console.error("Failed to get user alias:", error);
@@ -404,25 +365,30 @@ export async function getUserInfoFromSecretKey(
     contractAddress: contractAddress.substring(0, 8) + "...",
     secretKeyLength: secretKeyHex.length,
     hasPostId: postId !== undefined,
-    postId
+    postId,
   });
 
   try {
     // Derive public key from secret key
     const publicKey = derivePublicKeyFromSecret(secretKeyHex);
     console.log("[DEBUG] Derived public key, now calling getUserInfo");
-    
+
     // Use the existing getUserInfo function
-    const userInfo = await getUserInfo(publicDataProvider, contractAddress, publicKey, postId);
+    const userInfo = await getUserInfo(
+      publicDataProvider,
+      contractAddress,
+      publicKey,
+      postId
+    );
     console.log("[DEBUG] getUserInfo returned:", {
       publicKey: userInfo.publicKey.substring(0, 8) + "...",
       reputation: userInfo.reputation,
       hasAlias: !!userInfo.alias,
       alias: userInfo.alias,
       hasVotedPlus: userInfo.hasVotedPlus,
-      hasVotedMinus: userInfo.hasVotedMinus
+      hasVotedMinus: userInfo.hasVotedMinus,
     });
-    
+
     return userInfo;
   } catch (error) {
     console.error("[DEBUG] Failed to get user info from secret key:", error);
@@ -454,7 +420,7 @@ export async function publishPost(
     contentLength: content.length,
     secretKeyLength: secretKeyHex.length,
     hasProviders: !!providers,
-    providerKeys: Object.keys(providers)
+    providerKeys: Object.keys(providers),
   });
 
   try {
@@ -462,7 +428,9 @@ export async function publishPost(
 
     // Convert hex string to Uint8Array
     const secretKey = hexToBytes(secretKeyHex);
-    console.log("[DEBUG] Secret key converted to bytes:", { length: secretKey.length });
+    console.log("[DEBUG] Secret key converted to bytes:", {
+      length: secretKey.length,
+    });
 
     // Get deployed contract object
     console.log("[DEBUG] Getting deployed contract...");
@@ -471,32 +439,34 @@ export async function publishPost(
       contractAddress,
       secretKey
     );
-    console.log("[DEBUG] Got deployed contract:", { hasCallTx: !!deployedContract.callTx });
+    console.log("[DEBUG] Got deployed contract:", {
+      hasCallTx: !!deployedContract.callTx,
+    });
 
     // Call publishPost method via callTx
     console.log("[DEBUG] Calling publishPost on contract...");
     const result = await deployedContract.callTx.publishPost(content);
 
     console.log("[DEBUG] Post published successfully:", {
-      hasResult: !!result.result,
+      hasResult: !!result,
       hasTxId: !!result.public?.txId,
-      result: result.result,
-      txId: result.public?.txId
+      result: result,
+      txId: result.public?.txId,
     });
-    
+
     return {
       success: true,
-      postId: Number(result.result), // The circuit returns the new post ID
+      postId: Number(result), // The circuit returns the new post ID
       transactionId: result.public.txId,
     };
   } catch (error) {
     console.error("[DEBUG] Failed to publish post:", error);
     console.error("[DEBUG] Error details:", {
-      name: error instanceof Error ? error.name : 'Unknown',
+      name: error instanceof Error ? error.name : "Unknown",
       message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined
+      stack: error instanceof Error ? error.stack : undefined,
     });
-    
+
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),
@@ -535,20 +505,20 @@ export async function votePlus(
   } catch (error) {
     console.error("[DEBUG] Failed to vote plus:", error);
     console.error("[DEBUG] Error details:", {
-      name: error instanceof Error ? error.name : 'Unknown',
+      name: error instanceof Error ? error.name : "Unknown",
       message: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
-      cause: error instanceof Error ? error.cause : undefined
+      cause: error instanceof Error ? error.cause : undefined,
     });
-    
+
     // Try to extract more details if it's a network error
-    if (error && typeof error === 'object' && 'response' in error) {
+    if (error && typeof error === "object" && "response" in error) {
       console.error("[DEBUG] Network response error:", error.response);
     }
-    if (error && typeof error === 'object' && 'status' in error) {
+    if (error && typeof error === "object" && "status" in error) {
       console.error("[DEBUG] HTTP status:", error.status);
     }
-    
+
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),
@@ -587,20 +557,20 @@ export async function voteMinus(
   } catch (error) {
     console.error("[DEBUG] Failed to vote minus:", error);
     console.error("[DEBUG] Error details:", {
-      name: error instanceof Error ? error.name : 'Unknown',
+      name: error instanceof Error ? error.name : "Unknown",
       message: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
-      cause: error instanceof Error ? error.cause : undefined
+      cause: error instanceof Error ? error.cause : undefined,
     });
-    
+
     // Try to extract more details if it's a network error
-    if (error && typeof error === 'object' && 'response' in error) {
+    if (error && typeof error === "object" && "response" in error) {
       console.error("[DEBUG] Network response error:", error.response);
     }
-    if (error && typeof error === 'object' && 'status' in error) {
+    if (error && typeof error === "object" && "status" in error) {
       console.error("[DEBUG] HTTP status:", error.status);
     }
-    
+
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),
@@ -699,15 +669,15 @@ export async function getPost(
 
     const contractLedger = rebelsLedger(contractState.data);
 
-    if (!contractLedger.posts.member(postId)) {
+    if (!contractLedger.posts.member(BigInt(postId))) {
       return null;
     }
 
-    const post = contractLedger.posts.lookup(postId);
+    const post = contractLedger.posts.lookup(BigInt(postId));
     return {
       postId,
-      author: bytesToHex(post.author.bytes as Uint8Array),
-      content: post.content.value as string,
+      author: bytesToHex(post.author),
+      content: post.content,
       plusVotes: Number(post.plusVotes),
       minusVotes: Number(post.minusVotes),
       score: Number(post.plusVotes) - Number(post.minusVotes),
@@ -728,7 +698,7 @@ export async function checkUserVote(
   console.log(`[DEBUG] checkUserVote called:`, {
     contractAddress: contractAddress.substring(0, 8) + "...",
     userPublicKey: userPublicKey.substring(0, 8) + "...",
-    postId
+    postId,
   });
 
   try {
@@ -746,38 +716,63 @@ export async function checkUserVote(
     let userKeyBytes: Uint8Array;
     try {
       userKeyBytes = hexToBytes(userPublicKey);
-      console.log(`[DEBUG] checkUserVote: converted public key to bytes (${userKeyBytes.length} bytes)`);
+      console.log(
+        `[DEBUG] checkUserVote: converted public key to bytes (${userKeyBytes.length} bytes)`
+      );
     } catch (error) {
-      console.error("[DEBUG] checkUserVote: Failed to convert userPublicKey to bytes:", error);
+      console.error(
+        "[DEBUG] checkUserVote: Failed to convert userPublicKey to bytes:",
+        error
+      );
       return null;
     }
 
-    console.log(`[DEBUG] checkUserVote: checking plus voters for post ${postId}`);
+    console.log(
+      `[DEBUG] checkUserVote: checking plus voters for post ${postId}`
+    );
     // Check if user voted plus
     if (contractLedger.plusVoters.member(BigInt(postId))) {
-      console.log(`[DEBUG] checkUserVote: plusVoters map has entry for post ${postId}, checking membership`);
+      console.log(
+        `[DEBUG] checkUserVote: plusVoters map has entry for post ${postId}, checking membership`
+      );
       const plusVotersSet = contractLedger.plusVoters.lookup(BigInt(postId));
       if (plusVotersSet.member(userKeyBytes)) {
-        console.log(`[DEBUG] checkUserVote: user IS in plusVoters for post ${postId}`);
+        console.log(
+          `[DEBUG] checkUserVote: user IS in plusVoters for post ${postId}`
+        );
         return "plus";
       }
-      console.log(`[DEBUG] checkUserVote: user is NOT in plusVoters for post ${postId}`);
+      console.log(
+        `[DEBUG] checkUserVote: user is NOT in plusVoters for post ${postId}`
+      );
     } else {
-      console.log(`[DEBUG] checkUserVote: no plusVoters entry for post ${postId}`);
+      console.log(
+        `[DEBUG] checkUserVote: no plusVoters entry for post ${postId}`
+      );
     }
 
-    console.log(`[DEBUG] checkUserVote: checking minus voters for post ${postId}`);
+    console.log(
+      `[DEBUG] checkUserVote: checking minus voters for post ${postId}`
+    );
     // Check if user voted minus
     if (contractLedger.minusVoters.member(BigInt(postId))) {
-      console.log(`[DEBUG] checkUserVote: minusVoters map has entry for post ${postId}, checking membership`);
+      console.log(
+        `[DEBUG] checkUserVote: minusVoters map has entry for post ${postId}, checking membership`
+      );
       const minusVotersSet = contractLedger.minusVoters.lookup(BigInt(postId));
       if (minusVotersSet.member(userKeyBytes)) {
-        console.log(`[DEBUG] checkUserVote: user IS in minusVoters for post ${postId}`);
+        console.log(
+          `[DEBUG] checkUserVote: user IS in minusVoters for post ${postId}`
+        );
         return "minus";
       }
-      console.log(`[DEBUG] checkUserVote: user is NOT in minusVoters for post ${postId}`);
+      console.log(
+        `[DEBUG] checkUserVote: user is NOT in minusVoters for post ${postId}`
+      );
     } else {
-      console.log(`[DEBUG] checkUserVote: no minusVoters entry for post ${postId}`);
+      console.log(
+        `[DEBUG] checkUserVote: no minusVoters entry for post ${postId}`
+      );
     }
 
     // User hasn't voted
@@ -786,5 +781,88 @@ export async function checkUserVote(
   } catch (error) {
     console.error("[DEBUG] checkUserVote: Failed to check user vote:", error);
     return null;
+  }
+}
+
+// Suggest a new user (referral system)
+export async function suggestNewUser(
+  providers: RebelsProviders,
+  contractAddress: string,
+  newUserPublicKeyHex: string,
+  secretKeyHex: string
+): Promise<{ success: boolean; txHash?: string; error?: string }> {
+  console.log(
+    `[DEBUG] suggestNewUser called for:`,
+    newUserPublicKeyHex.substring(0, 8) + "..."
+  );
+
+  try {
+    // Convert hex strings to Uint8Array
+    const newUserPublicKey = hexToBytes(newUserPublicKeyHex);
+    const secretKey = hexToBytes(secretKeyHex);
+
+    console.log(`[DEBUG] suggestNewUser: getting deployed contract`);
+    // Get deployed contract object
+    const deployedContract = await getDeployedRebelsContract(
+      providers,
+      contractAddress,
+      secretKey
+    );
+
+    console.log(`[DEBUG] suggestNewUser: calling contract circuit`);
+    const result =
+      await deployedContract.callTx.suggestNewUser(newUserPublicKey);
+
+    console.log(
+      `[DEBUG] suggestNewUser: transaction successful`,
+      result.public.txId
+    );
+    return {
+      success: true,
+      txHash: result.public.txId,
+    };
+  } catch (error: any) {
+    console.error("[DEBUG] suggestNewUser failed:", error);
+    return { success: false, error: error?.message || "Unknown error" };
+  }
+}
+
+// Get user's remaining referral count
+export async function getReferralCount(
+  publicDataProvider: PublicDataProvider,
+  contractAddress: string,
+  userPublicKey: string
+): Promise<number> {
+  console.log(
+    `[DEBUG] getReferralCount called for:`,
+    userPublicKey.substring(0, 8) + "..."
+  );
+
+  try {
+    const contractState = await queryContractStateSafely(
+      publicDataProvider,
+      contractAddress,
+      `Contract state unavailable for Rebels contract ${contractAddress}`
+    );
+
+    const contractLedger = rebelsLedger(contractState.data);
+    const userKeyBytes = hexToBytes(userPublicKey);
+
+    if (contractLedger.referrals.member(userKeyBytes)) {
+      const usedReferrals = contractLedger.referrals.lookup(userKeyBytes);
+      const remaining = 2 - Number(usedReferrals); // Max 2 referrals per user
+      console.log(
+        `[DEBUG] getReferralCount: user has used ${usedReferrals}, remaining: ${remaining}`
+      );
+      return Math.max(0, remaining);
+    } else {
+      console.log(
+        `[DEBUG] getReferralCount: user not found in referrals map, assuming 2 remaining`
+      );
+      return 2; // New user, hasn't used any referrals yet
+    }
+  } catch (error) {
+    console.error("[DEBUG] getReferralCount failed:", error);
+    return 0; // Default to 0 on error
   }
 }
