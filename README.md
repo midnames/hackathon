@@ -1,5 +1,14 @@
 # Rebels. ZK Decentralized Journalism Platform.
 
+> [!NOTE]
+> Use these commands to run the frontend. 
+> ```
+> bun i
+> cd frontend-vite-react
+> bun run dev
+> ```
+
+
 ## Project Vision
 
 **"Protecting Democracy Through Zero-Knowledge Journalism"**
