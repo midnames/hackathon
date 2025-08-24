@@ -17,6 +17,7 @@ import {
   rebelsWitnesses,
   type RebelsPrivateState,
 } from "../../../counter-contract/src/witnesses.js";
+export type { RebelsPrivateState };
 import {
   deployContract,
   findDeployedContract,

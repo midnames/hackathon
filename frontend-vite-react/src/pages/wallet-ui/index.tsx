@@ -3,7 +3,8 @@ import { useAssets, useWallet } from "@meshsdk/midnight-react";
 import { ModeToggle } from "@/components/mode-toggle";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Link2, Server, Wifi, WifiOff, Wallet, Key } from "lucide-react";
+import { Link2, Server, Wifi, WifiOff, Wallet, Key, SwitchCamera } from "lucide-react";
+import { useAppSettings } from "@/contexts/app-settings";
 
 export function Debug() {
   const {
@@ -16,6 +17,7 @@ export function Debug() {
     walletName,
   } = useAssets();
   const { connectingWallet, disconnect, setOpen, connectWallet } = useWallet();
+  const { useCustomProofServer, setUseCustomProofServer } = useAppSettings();
 
   return (
     <div className="container mx-auto py-8 px-4">
@@ -90,6 +92,15 @@ export function Debug() {
             <CardDescription>Your wallet and network information</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium">Proof Server</h3>
+              <div className="flex items-center gap-2 text-sm">
+                <Button variant="outline" size="sm" className="gap-2" onClick={() => setUseCustomProofServer(!useCustomProofServer)}>
+                  <SwitchCamera className="h-4 w-4" />
+                  {useCustomProofServer ? 'Using custom (ps.midnames.com)' : 'Using wallet default'}
+                </Button>
+              </div>
+            </div>
             <div className="space-y-2">
               <h3 className="text-sm font-medium">Wallet Status</h3>
               <div className="flex items-center gap-2 text-sm">
@@ -179,7 +190,7 @@ export function Debug() {
                   <Server className="h-4 w-4 mt-0.5 flex-shrink-0 opacity-50" />
                   <div>
                     <div className="text-xs text-muted-foreground">Proof Server</div>
-                    <div className="truncate">{uris?.proverServerUri || 'Not available'}</div>
+                    <div className="truncate">{useCustomProofServer ? 'https://ps.midnames.com' : (uris?.proverServerUri || 'Not available')}</div>
                   </div>
                 </div>
               </div>

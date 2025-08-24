@@ -9,6 +9,11 @@ import { MainLayout } from "./layouts/layout";
 import { Debug } from "./pages/wallet-ui";
 import { Rebels } from "./pages/rebels";
 import { ThemeProvider } from "./components/theme-provider";
+import { Toaster } from "@/components/ui/toaster";
+import { AppSettingsProvider } from "@/contexts/app-settings";
+import { Profile } from "@/pages/profile";
+import { Story } from "@/pages/story";
+import { AuthProvider } from "@/contexts/auth";
 
 export const logger = pino.pino({
   level: "trace",
@@ -21,14 +26,21 @@ function App() {
   return (
     <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
       <MidnightMeshProvider logger={logger}>
-        <BrowserRouter basename="/">
-          <Routes>
-            <Route element={<MainLayout />}>
-              <Route path="/" element={<Rebels />} />
-              <Route path="/debug" element={<Debug />} />
-            </Route>
-          </Routes>
-        </BrowserRouter>
+        <AppSettingsProvider>
+          <AuthProvider>
+          <BrowserRouter basename="/">
+            <Routes>
+              <Route element={<MainLayout />}>
+                <Route path="/" element={<Rebels />} />
+                <Route path="/story/:id" element={<Story />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/debug" element={<Debug />} />
+              </Route>
+            </Routes>
+          </BrowserRouter>
+          <Toaster richColors position="top-right" />
+          </AuthProvider>
+        </AppSettingsProvider>
       </MidnightMeshProvider>
     </ThemeProvider>
   );

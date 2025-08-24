@@ -10,8 +10,7 @@ import {
   ThumbsUp,
   ThumbsDown,
   Flag,
-  User,
-  Trophy,
+  
   Send,
   AlertCircle,
   CheckCircle,
@@ -22,6 +21,14 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+import { CONFIG } from "@/config";
+import { Skeleton } from "@/components/ui/skeleton";
+import { FlowStatus } from "@/components/flow-status";
+import { useAppSettings } from "@/contexts/app-settings";
+import { useAuth } from "@/contexts/auth";
+import { Link } from "react-router-dom";
 import { useAssets, useWallet } from "@meshsdk/midnight-react";
 import { indexerPublicDataProvider } from "@midnight-ntwrk/midnight-js-indexer-public-data-provider";
 import {
@@ -214,32 +221,31 @@ const VotingButton: React.FC<VotingButtonProps> = ({
   );
 };
 
-// Contract address - you might want to make this configurable
-const REBELS_CONTRACT_ADDRESS =
-  process.env.REACT_APP_REBELS_CONTRACT_ADDRESS ||
-  "0200754c63438c4c805ba8a639d3ef876ac4ee95aed7d9afdde62ba8b9c60581805d";
+// Contract address via Vite env (fallback in CONFIG)
+const REBELS_CONTRACT_ADDRESS = CONFIG.REBELS_CONTRACT_ADDRESS;
 
 export function Rebels() {
   // State management
   const [posts, setPosts] = useState<PostWithMetadata[]>([]);
-  const [newPostContent, setNewPostContent] = useState("");
-  const [secretKey, setSecretKey] = useState("");
+  // Structured post creation fields
+  const [postTitle, setPostTitle] = useState("");
+  const [postSummary, setPostSummary] = useState("");
+  const [postImageUrl, setPostImageUrl] = useState("");
+  const [postBody, setPostBody] = useState("");
+  const { secretKey, secretKeyUserInfo, setSecretKeyUserInfo } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [contractAddress, setContractAddress] = useState(
     REBELS_CONTRACT_ADDRESS
   );
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
-  const [secretKeyUserInfo, setSecretKeyUserInfo] = useState<UserInfo | null>(
-    null
-  );
   const [flowMessage, setFlowMessage] = useState<string | undefined>(undefined);
   const [operationResult, setOperationResult] = useState<any>(null);
   const [votingStates, setVotingStates] = useState<
     Record<number, "voting-plus" | "voting-minus" | null>
   >({});
-  const [useCustomProofServer, setUseCustomProofServer] = useState(false);
-  const [activeTab, setActiveTab] = useState<"posts" | "referrals" | "debug">(
+  const { useCustomProofServer } = useAppSettings();
+  const [activeTab, setActiveTab] = useState<"posts" | "referrals">(
     "posts"
   );
   const [newUserPublicKey, setNewUserPublicKey] = useState("");
@@ -280,10 +286,7 @@ export function Rebels() {
   );
 
   // Private state provider for Rebels contract
-  const privateStateProvider: PrivateStateProvider<
-    typeof RebelsPrivateStateId,
-    RebelsPrivateState
-  > = useMemo(
+  const privateStateProvider: PrivateStateProvider<any, any> = useMemo(
     () =>
       new WrappedPrivateStateProvider(
         levelPrivateStateProvider({
@@ -400,7 +403,7 @@ export function Rebels() {
 
   // Complete providers object for write operations
   const fullProviders:
-    | MidnightProviders<any, typeof RebelsPrivateStateId, RebelsPrivateState>
+    | MidnightProviders<any, any, any>
     | undefined = useMemo(() => {
     return publicDataProvider && zkConfigProvider && hasConnectedWallet
       ? {
@@ -468,7 +471,7 @@ export function Rebels() {
       "[DEBUG] Secret key changed - voting buttons will refresh their status"
     );
 
-    loadSecretKeyUserInfo();
+  loadSecretKeyUserInfo();
   }, [publicDataProvider, contractAddress, secretKey]);
 
   // Debug log when secretKeyUserInfo changes
@@ -566,12 +569,25 @@ export function Rebels() {
     }
   };
 
+  // Compose post as a single string (markdown-like) to keep contract unchanged
+  const composePostContent = () => {
+    const parts: string[] = [];
+    if (postTitle.trim()) parts.push(`# ${postTitle.trim()}`);
+    if (postImageUrl.trim()) parts.push(`![image](${postImageUrl.trim()})`);
+    if (postSummary.trim()) parts.push(`> ${postSummary.trim()}`);
+    if (postBody.trim()) parts.push(postBody.trim());
+    return parts.join("\n\n");
+  };
+
+  const composedContent = composePostContent();
+  const MAX_CONTENT = 2000;
+
   const handlePublishPost = async () => {
     console.log("[DEBUG] handlePublishPost called:", {
       hasFullProviders: !!fullProviders,
       hasContractAddress: !!contractAddress,
-      hasContent: !!newPostContent.trim(),
-      contentLength: newPostContent.trim().length,
+      hasContent: !!composedContent.trim(),
+      contentLength: composedContent.trim().length,
       hasSecretKeyUserInfo: !!secretKeyUserInfo,
       hasSecretKey: !!secretKey,
       secretKeyLength: secretKey?.length,
@@ -580,7 +596,7 @@ export function Rebels() {
     if (
       !fullProviders ||
       !contractAddress ||
-      !newPostContent.trim() ||
+      !composedContent.trim() ||
       !secretKey
     ) {
       console.log(
@@ -596,30 +612,28 @@ export function Rebels() {
       const result = await publishPost(
         fullProviders,
         contractAddress,
-        newPostContent.trim(),
+        composedContent.trim(),
         secretKey
       );
 
       if (result.success) {
-        setOperationResult({
-          success: true,
-          message: "Post published successfully!",
-          transactionId: result.transactionId,
+        toast.success("Post published successfully", {
+          description: result.transactionId
+            ? `Tx: ${formatAddress(result.transactionId)}`
+            : undefined,
         });
-        setNewPostContent("");
+  // clear fields
+  setPostTitle("");
+  setPostSummary("");
+  setPostImageUrl("");
+  setPostBody("");
         // Reload posts after successful publish
         setTimeout(() => loadPosts(), 2000); // Give some time for blockchain to update
       } else {
-        setOperationResult({
-          success: false,
-          error: result.error,
-        });
+  toast.error(result.error || "Failed to publish post");
       }
     } catch (error) {
-      setOperationResult({
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      });
+  toast.error(error instanceof Error ? error.message : String(error));
     } finally {
       setIsPublishing(false);
       setFlowMessage(undefined);
@@ -657,11 +671,14 @@ export function Rebels() {
           : await voteMinus(fullProviders, contractAddress, postId, secretKey);
 
       if (result.success) {
-        setOperationResult({
-          success: true,
-          message: `${voteType === "plus" ? "Upvoted" : "Downvoted"} successfully!`,
-          transactionId: result.transactionId,
-        });
+        toast.success(
+          voteType === "plus" ? "Upvoted successfully" : "Downvoted successfully",
+          {
+            description: result.transactionId
+              ? `Tx: ${formatAddress(result.transactionId)}`
+              : undefined,
+          }
+        );
 
         // VotingButton components will automatically refresh their status
 
@@ -671,16 +688,10 @@ export function Rebels() {
           loadSecretKeyUserInfo();
         }, 2000);
       } else {
-        setOperationResult({
-          success: false,
-          error: result.error,
-        });
+  toast.error(result.error || "Failed to vote");
       }
     } catch (error) {
-      setOperationResult({
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      });
+  toast.error(error instanceof Error ? error.message : String(error));
     } finally {
       setVotingStates((prev) => ({ ...prev, [postId]: null }));
       setFlowMessage(undefined);
@@ -700,22 +711,16 @@ export function Rebels() {
       );
 
       if (result.success) {
-        setOperationResult({
-          success: true,
-          message: "Post flagged successfully!",
-          transactionId: result.transactionId,
+        toast.success("Post flagged successfully", {
+          description: result.transactionId
+            ? `Tx: ${formatAddress(result.transactionId)}`
+            : undefined,
         });
       } else {
-        setOperationResult({
-          success: false,
-          error: result.error,
-        });
+        toast.error(result.error || "Failed to flag post");
       }
     } catch (error) {
-      setOperationResult({
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      });
+  toast.error(error instanceof Error ? error.message : String(error));
     } finally {
       setFlowMessage(undefined);
     }
@@ -750,26 +755,17 @@ export function Rebels() {
       !secretKeyUserInfo ||
       !secretKey
     ) {
-      setOperationResult({
-        success: false,
-        error: "Missing required providers or user information",
-      });
+      toast.error("Missing required providers or user information");
       return;
     }
 
     if (!newUserPublicKey.trim()) {
-      setOperationResult({
-        success: false,
-        error: "Please enter a public key to refer",
-      });
+      toast.error("Please enter a public key to refer");
       return;
     }
 
     if (newUserPublicKey.length !== 64) {
-      setOperationResult({
-        success: false,
-        error: "Public key must be 64 hex characters",
-      });
+      toast.error("Public key must be 64 hex characters");
       return;
     }
 
@@ -784,22 +780,18 @@ export function Rebels() {
         secretKey
       );
 
-      setOperationResult({
-        success: result.success,
-        txHash: result.txHash,
-        error: result.error,
-      });
-
       if (result.success) {
+        toast.success("Referral submitted", {
+          description: result.txHash ? `Tx: ${formatAddress(result.txHash)}` : undefined,
+        });
         setNewUserPublicKey("");
         // Refresh referral count
         setTimeout(() => loadReferralCount(), 1000);
+      } else {
+        toast.error(result.error || "Failed to submit referral");
       }
     } catch (error) {
-      setOperationResult({
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      });
+      toast.error(error instanceof Error ? error.message : String(error));
     } finally {
       setIsReferring(false);
       setFlowMessage(undefined);
@@ -843,203 +835,27 @@ export function Rebels() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-background py-10 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-3xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center w-20 h-20 bg-primary/10 rounded-full mb-6 mx-auto">
-            <MessageSquare className="w-10 h-10 text-primary" />
+        <div className="mb-8">
+          <div className="flex items-center gap-3 text-accent mb-3">
+            <MessageSquare className="w-6 h-6" />
+            <span className="uppercase tracking-widest text-xs">Latest Dispatch</span>
           </div>
-          <h1 className="text-4xl font-bold text-foreground mb-4">
-            Rebels Platform
+          <h1 className="font-headline text-4xl md:text-5xl leading-tight">
+            Censorship‑resistant, community‑moderated reporting
           </h1>
-          <p className="text-xl text-muted-foreground">
-            Decentralized journalism with community voting
+          <p className="text-base text-muted-foreground mt-3">
+            Publish stories, vote on credibility, and build a reputation—on chain.
           </p>
         </div>
 
-        {/* Secret Key Input */}
-        <div className="mb-6">
-          <Card>
-            <CardContent className="py-4">
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <User className="w-4 h-4" />
-                  <span className="font-medium">Secret Key Authentication</span>
-                </div>
-                <Input
-                  type="password"
-                  placeholder="Enter your secret key (64 hex characters)"
-                  value={secretKey}
-                  onChange={(e) => setSecretKey(e.target.value)}
-                  className="font-mono"
-                />
-                <div className="flex items-center justify-between text-sm">
-                  <div
-                    className={`${secretKey.length === 64 && /^[0-9a-fA-F]+$/.test(secretKey) ? "text-green-600" : "text-red-500"}`}
-                  >
-                    Secret key: {secretKey.length}/64 chars{" "}
-                    {secretKey.length === 64 && /^[0-9a-fA-F]+$/.test(secretKey)
-                      ? "✓"
-                      : "✗"}
-                  </div>
-                  {secretKeyUserInfo && (
-                    <div className="flex items-center gap-4">
-                      <span className="flex items-center gap-1 text-green-600">
-                        <Trophy className="w-4 h-4" />
-                        Reputation: {secretKeyUserInfo.reputation}
-                      </span>
-                      {secretKeyUserInfo.alias && (
-                        <span className="flex items-center gap-1 text-blue-600">
-                          <User className="w-4 h-4" />
-                          {secretKeyUserInfo.alias}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+  {/* Secret Key moved to Profile page */}
 
-        {/* Debug Panel */}
-        {secretKey && (
-          <div className="mb-6">
-            <Card className="border-yellow-200 bg-yellow-50">
-              <CardHeader>
-                <CardTitle className="text-yellow-800 text-sm">
-                  🐛 Debug Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-xs space-y-2">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <strong>Secret Key:</strong>
-                    <div>Length: {secretKey.length}/64</div>
-                    <div>
-                      Valid Hex:{" "}
-                      {/^[0-9a-fA-F]+$/.test(secretKey) ? "✅" : "❌"}
-                    </div>
-                    <div>
-                      Valid Format:{" "}
-                      {secretKey.length === 64 &&
-                      /^[0-9a-fA-F]+$/.test(secretKey)
-                        ? "✅"
-                        : "❌"}
-                    </div>
-                  </div>
-                  <div>
-                    <strong>User Info:</strong>
-                    <div>
-                      Has secretKeyUserInfo: {secretKeyUserInfo ? "✅" : "❌"}
-                    </div>
-                    <div>
-                      Reputation: {secretKeyUserInfo?.reputation || "N/A"}
-                    </div>
-                    <div>
-                      Has Alias: {secretKeyUserInfo?.alias ? "✅" : "❌"}
-                    </div>
-                  </div>
-                  <div>
-                    <strong>Providers:</strong>
-                    <div>
-                      publicDataProvider: {publicDataProvider ? "✅" : "❌"}
-                    </div>
-                    <div>fullProviders: {fullProviders ? "✅" : "❌"}</div>
-                    <div>
-                      hasConnectedWallet: {hasConnectedWallet ? "✅" : "❌"}
-                    </div>
-                    <div>
-                      Proof Server:{" "}
-                      {useCustomProofServer
-                        ? "Custom (ps.midnames.com)"
-                        : "Wallet (localhost)"}
-                    </div>
-                  </div>
-                  <div>
-                    <strong>Contract:</strong>
-                    <div>
-                      Address:{" "}
-                      {contractAddress
-                        ? contractAddress.substring(0, 8) + "..."
-                        : "❌"}
-                    </div>
-                    <div>
-                      Coin Public Key:{" "}
-                      {coinPublicKey
-                        ? coinPublicKey.substring(0, 8) + "..."
-                        : "❌"}
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-4 p-2 bg-yellow-100 rounded">
-                  <strong>Voting States:</strong>
-                  <div>votingStates: {JSON.stringify(votingStates)}</div>
-                  <div>Total posts loaded: {posts.length}</div>
-                  {posts.length > 0 && (
-                    <div>
-                      <strong>First post vote button states:</strong>
-                      <div>Post ID: {posts[0].postId}</div>
-                      <div>
-                        Currently voting:{" "}
-                        {votingStates[posts[0].postId] || "none"}
-                      </div>
-                      <div>
-                        Note: Vote status is now checked directly by each button
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="mt-2 p-2 bg-yellow-100 rounded">
-                  <strong>Publish Button:</strong>
-                  <div>Content length: {newPostContent.trim().length}</div>
-                  <div>
-                    Has secretKeyUserInfo: {!!secretKeyUserInfo ? "✅" : "❌"}
-                  </div>
-                  <div>
-                    Button disabled:{" "}
-                    {!newPostContent.trim() ||
-                    newPostContent.length > 1000 ||
-                    !secretKeyUserInfo
-                      ? "🔴 YES"
-                      : "🟢 NO"}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+  {/* Debug panel moved off the main page */}
 
-        {/* Proof Server Toggle */}
-        <div className="mb-6">
-          <Card className="border-blue-200 bg-blue-50">
-            <CardContent className="py-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-blue-900">
-                    Proof Server Configuration
-                  </p>
-                  <p className="text-xs text-blue-600">
-                    {useCustomProofServer
-                      ? "Using custom proof server (ps.midnames.com) - same as CLI script"
-                      : "Using wallet proof server (localhost) - default Lace behavior"}
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setUseCustomProofServer(!useCustomProofServer)}
-                  className="ml-4"
-                >
-                  {useCustomProofServer
-                    ? "Use Wallet Server"
-                    : "Use Custom Server"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+  {/* Proof Server settings moved to Debug page */}
 
         {/* Connection Status */}
         <div className="mb-6">
@@ -1063,20 +879,6 @@ export function Rebels() {
                 <div className="flex items-center justify-center gap-2">
                   <CheckCircle className="w-4 h-4" />
                   <span>Wallet Connected - All operations enabled</span>
-                  {userInfo && (
-                    <div className="flex items-center gap-4 ml-4">
-                      <span className="flex items-center gap-1">
-                        <Trophy className="w-4 h-4" />
-                        Reputation: {userInfo.reputation}
-                      </span>
-                      {userInfo.alias && (
-                        <span className="flex items-center gap-1">
-                          <User className="w-4 h-4" />
-                          {userInfo.alias}
-                        </span>
-                      )}
-                    </div>
-                  )}
                 </div>
               ) : hasConnectedWallet ? (
                 <p className="flex items-center justify-center gap-2">
@@ -1105,15 +907,8 @@ export function Rebels() {
           </div>
         )}
 
-        {/* Flow Message */}
-        {flowMessage && (
-          <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200">
-            <p className="text-sm font-medium text-blue-600 dark:text-blue-400 flex items-center gap-2">
-              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-              {flowMessage}
-            </p>
-          </div>
-        )}
+  {/* Flow status (compact floating) */}
+  <FlowStatus message={flowMessage} />
 
         {/* Operation Result */}
         {operationResult && (
@@ -1142,10 +937,10 @@ export function Rebels() {
         )}
 
         {/* Tab Navigation */}
-        {fullProviders && (
+    {fullProviders && (
           <div className="mb-8">
             <div className="flex space-x-1 bg-muted p-1 rounded-lg mb-6">
-              {(["posts", "referrals", "debug"] as const).map((tab) => (
+      {(["posts", "referrals"] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -1157,7 +952,6 @@ export function Rebels() {
                 >
                   {tab === "posts" && "📝 Posts"}
                   {tab === "referrals" && "👥 Referrals"}
-                  {tab === "debug" && "🐛 Debug"}
                 </button>
               ))}
             </div>
@@ -1172,29 +966,49 @@ export function Rebels() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="flex flex-col gap-3">
-                      <textarea
-                        placeholder="Share your story with the world..."
-                        value={newPostContent}
-                        onChange={(e) => setNewPostContent(e.target.value)}
-                        className="min-h-[100px] w-full px-3 py-2 border rounded-md resize-vertical"
+                      <Input
+                        placeholder="Title"
+                        value={postTitle}
+                        onChange={(e) => setPostTitle(e.target.value)}
+                        disabled={isPublishing}
+                        className="font-headline text-lg"
+                      />
+                      <Input
+                        placeholder="Image URL (optional)"
+                        value={postImageUrl}
+                        onChange={(e) => setPostImageUrl(e.target.value)}
                         disabled={isPublishing}
                       />
-                      <div className="flex items-center justify-between">
+                      <Input
+                        placeholder="One-line summary (optional)"
+                        value={postSummary}
+                        onChange={(e) => setPostSummary(e.target.value)}
+                        disabled={isPublishing}
+                      />
+                      <Textarea
+                        placeholder="Write your story..."
+                        value={postBody}
+                        onChange={(e) => setPostBody(e.target.value)}
+                        className="min-h-[140px] resize-vertical"
+                        disabled={isPublishing}
+                      />
+                          <div className="flex items-center justify-between">
                         <div className="text-sm text-muted-foreground">
-                          <div>{newPostContent.length}/1000 characters</div>
+                          <div>{composedContent.length}/{MAX_CONTENT} characters</div>
                           <div
                             className={`${secretKeyUserInfo ? "text-green-600" : "text-red-500"}`}
                           >
                             {secretKeyUserInfo
                               ? "Secret key authenticated ✓"
-                              : "Please enter a valid secret key above ✗"}
+                              : "Secret key required (set in Profile) ✗"}
                           </div>
                         </div>
                         <Button
                           onClick={handlePublishPost}
                           disabled={
-                            !newPostContent.trim() ||
-                            newPostContent.length > 1000 ||
+                            !postTitle.trim() ||
+                            !postBody.trim() ||
+                            composedContent.length > MAX_CONTENT ||
                             isPublishing ||
                             !secretKeyUserInfo
                           }
@@ -1212,6 +1026,13 @@ export function Rebels() {
                           )}
                         </Button>
                       </div>
+                      {/* Live preview */}
+                      {composedContent && (
+                        <div className="mt-2 p-3 border rounded-md bg-muted/30">
+                          <div className="text-xs text-muted-foreground mb-2">Preview</div>
+                          <PostPreview content={composedContent} />
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -1219,9 +1040,21 @@ export function Rebels() {
                 {/* Posts Feed */}
                 <div className="space-y-4">
                   {isLoading ? (
-                    <div className="text-center py-8">
-                      <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                      <p className="text-muted-foreground">Loading posts...</p>
+                    <div className="space-y-4">
+                      {[...Array(3)].map((_, i) => (
+                        <Card key={i} className="p-6">
+                          <div className="space-y-3">
+                            <Skeleton className="h-4 w-40" />
+                            <Skeleton className="h-6 w-24" />
+                            <Skeleton className="h-16 w-full" />
+                            <div className="flex gap-2">
+                              <Skeleton className="h-8 w-20" />
+                              <Skeleton className="h-8 w-20" />
+                              <Skeleton className="h-8 w-20" />
+                            </div>
+                          </div>
+                        </Card>
+                      ))}
                     </div>
                   ) : posts.length === 0 ? (
                     <Card>
@@ -1238,8 +1071,7 @@ export function Rebels() {
                           <div className="flex items-start justify-between">
                             <div>
                               <p className="text-sm text-muted-foreground">
-                                Post #{post.postId} by{" "}
-                                {formatAddress(post.author)}
+                                Post #{post.postId} by {formatAddress(post.author)}
                               </p>
                               <div className="flex items-center gap-4 mt-1">
                                 <span
@@ -1260,16 +1092,12 @@ export function Rebels() {
                             </div>
                           </div>
 
-                          {/* Post Content */}
-                          <div className="prose prose-sm max-w-none">
-                            <p className="whitespace-pre-wrap">
-                              {post.content}
-                            </p>
-                          </div>
+                          {/* Styled Content */}
+                          {/* Styled teaser: title, summary, image only */}
+                          <Teaser content={post.content} />
 
-                          {/* Action Buttons */}
+                          {/* Actions */}
                           <div className="flex items-center gap-2 pt-2">
-                            {/* Upvote Button */}
                             <VotingButton
                               post={post}
                               voteType="plus"
@@ -1279,8 +1107,6 @@ export function Rebels() {
                               votingStates={votingStates}
                               checkVoteStatus={checkVoteStatus}
                             />
-
-                            {/* Downvote Button */}
                             <VotingButton
                               post={post}
                               voteType="minus"
@@ -1290,8 +1116,6 @@ export function Rebels() {
                               votingStates={votingStates}
                               checkVoteStatus={checkVoteStatus}
                             />
-
-                            {/* Flag Button */}
                             <Button
                               variant="outline"
                               size="sm"
@@ -1300,6 +1124,9 @@ export function Rebels() {
                             >
                               <Flag className="w-4 h-4" />
                               Flag
+                            </Button>
+                            <Button asChild size="sm">
+                              <Link to={`/story/${post.postId}`}>Read full story</Link>
                             </Button>
                           </div>
                         </div>
@@ -1432,77 +1259,7 @@ export function Rebels() {
               </div>
             )}
 
-            {/* Debug Tab */}
-            {activeTab === "debug" && secretKey && (
-              <Card className="border-yellow-200 bg-yellow-50">
-                <CardHeader>
-                  <CardTitle className="text-yellow-800 text-sm">
-                    🐛 Debug Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="text-xs space-y-2">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <strong>Secret Key:</strong>
-                      <div>Length: {secretKey.length}/64</div>
-                      <div>
-                        Valid Hex:{" "}
-                        {/^[0-9a-fA-F]+$/.test(secretKey) ? "✅" : "❌"}
-                      </div>
-                      <div>
-                        Valid Format:{" "}
-                        {secretKey.length === 64 &&
-                        /^[0-9a-fA-F]+$/.test(secretKey)
-                          ? "✅"
-                          : "❌"}
-                      </div>
-                    </div>
-                    <div>
-                      <strong>User Info:</strong>
-                      <div>
-                        Public Key: {secretKeyUserInfo?.publicKey.slice(0, 16)}
-                        ...
-                      </div>
-                      <div>Alias: {secretKeyUserInfo?.alias || "N/A"}</div>
-                      <div>Reputation: {secretKeyUserInfo?.reputation}</div>
-                      <div>Has Secret Key: {!!secretKey ? "✅" : "❌"}</div>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 mt-4">
-                    <div>
-                      <strong>Providers:</strong>
-                      <div>
-                        Public Data: {!!publicDataProvider ? "✅" : "❌"}
-                      </div>
-                      <div>Full Providers: {!!fullProviders ? "✅" : "❌"}</div>
-                      <div>
-                        Contract Address: {contractAddress.slice(0, 16)}...
-                      </div>
-                    </div>
-                    <div>
-                      <strong>Publish Status:</strong>
-                      <div>Content Length: {newPostContent.length}/1000</div>
-                      <div>
-                        Has content: {!!newPostContent.trim() ? "✅" : "❌"}
-                      </div>
-                      <div>
-                        Has secretKeyUserInfo:{" "}
-                        {!!secretKeyUserInfo ? "✅" : "❌"}
-                      </div>
-                      <div>
-                        Button disabled:{" "}
-                        {!newPostContent.trim() ||
-                        newPostContent.length > 1000 ||
-                        !secretKeyUserInfo
-                          ? "🔴 YES"
-                          : "🟢 NO"}
-                      </div>
-                      <div>Referrals remaining: {referralCount}/2</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+            {/* Debug tab removed from main page */}
 
             {/* Flow Messages and Results */}
             {flowMessage && (
@@ -1577,6 +1334,84 @@ export function Rebels() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// Lightweight renderer for composed content (# title, > summary, ![image](url), body)
+function StyledPost({ content }: { content: string }) {
+  const lines = content.split(/\r?\n/).filter(Boolean);
+  let title: string | undefined;
+  let summary: string | undefined;
+  let imageUrl: string | undefined;
+  const body: string[] = [];
+
+  for (const line of lines) {
+    if (!title && line.startsWith("# ")) {
+      title = line.slice(2).trim();
+      continue;
+    }
+    if (!imageUrl && line.startsWith("![image](") && line.endsWith(")")) {
+      imageUrl = line.slice(9, -1);
+      continue;
+    }
+    if (!summary && line.startsWith("> ")) {
+      summary = line.slice(2).trim();
+      continue;
+    }
+    body.push(line);
+  }
+
+  return (
+    <div className="space-y-3">
+      {title && <h2 className="font-headline text-2xl leading-snug">{title}</h2>}
+      {summary && (
+        <p className="text-sm text-muted-foreground border-l-2 pl-3">
+          {summary}
+        </p>
+      )}
+      {imageUrl && (
+        <div className="rounded-md overflow-hidden border bg-muted/30">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={imageUrl} alt="post image" className="w-full h-auto object-cover" />
+        </div>
+      )}
+      {body.length > 0 && (
+        <div className="prose prose-sm max-w-none">
+          <p className="whitespace-pre-wrap">{body.join("\n")}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PostPreview({ content }: { content: string }) {
+  return (
+    <div className="space-y-2">
+      <StyledPost content={content} />
+    </div>
+  );
+}
+
+function Teaser({ content }: { content: string }) {
+  const lines = content.split(/\r?\n/).filter(Boolean);
+  let title: string | undefined;
+  let summary: string | undefined;
+  let imageUrl: string | undefined;
+  for (const line of lines) {
+    if (!title && line.startsWith("# ")) { title = line.slice(2).trim(); continue; }
+    if (!imageUrl && line.startsWith("![image](") && line.endsWith(")")) { imageUrl = line.slice(9, -1); continue; }
+    if (!summary && line.startsWith("> ")) { summary = line.slice(2).trim(); continue; }
+  }
+  return (
+    <div className="space-y-3">
+      {title && <h2 className="font-headline text-2xl leading-snug">{title}</h2>}
+      {imageUrl && (
+        <div className="rounded-md overflow-hidden border bg-muted/30">
+          <img src={imageUrl} alt="post image" className="w-full h-48 object-cover" />
+        </div>
+      )}
+      {summary && <p className="text-sm text-muted-foreground">{summary}</p>}
     </div>
   );
 }
